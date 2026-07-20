@@ -7,8 +7,7 @@ backendChamados/usuarios_ad_descartados.csv
 # --- python / django ---
 __pycache__/
 *.py[cod]
-*.sqlite3
-backendChamados/media/
+*.sqlite
 .venv/
 venv/
 .env
@@ -21,7 +20,6 @@ frontendChamados/dist/
 # --- rascunhos e anotações locais ---
 tudo.txt
 vaiBruno/
-ramal
 bd
 
 # --- editor / SO ---
