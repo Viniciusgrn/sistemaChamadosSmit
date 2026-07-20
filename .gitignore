@@ -1,0 +1,31 @@
+# --- dados pessoais de servidores (NUNCA subir) ---
+ramais.txt
+backendChamados/Usuarios_AD_Completo.csv
+backendChamados/usuarios_ad_tratado.csv
+backendChamados/usuarios_ad_descartados.csv
+
+# --- python / django ---
+__pycache__/
+*.py[cod]
+*.sqlite3
+backendChamados/media/
+.venv/
+venv/
+.env
+
+# --- node / vite ---
+node_modules/
+frontendChamados/dist/
+*.local
+
+# --- rascunhos e anotações locais ---
+tudo.txt
+vaiBruno/
+ramal
+bd
+
+# --- editor / SO ---
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store

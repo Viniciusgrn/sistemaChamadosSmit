@@ -1,0 +1,18 @@
+<div class="planta-editor">
+  <textarea name="{{ widget.name }}" id="{{ widget.attrs.id }}" style="display:none">{% if widget.value %}{{ widget.value }}{% endif %}</textarea>
+  <script type="application/json" class="pe-plantas">{{ widget.plantas_json|safe }}</script>
+
+  <div class="pe-toolbar">
+    <span class="pe-hint">
+      Clique na imagem pra adicionar um vértice · arraste um ponto pra mover · duplo-clique num ponto pra remover.
+    </span>
+    <span class="pe-count"></span>
+    <button type="button" class="pe-clear">Limpar tudo</button>
+  </div>
+
+  <div class="pe-stage">
+    <img class="pe-img" alt="">
+    <svg class="pe-svg" viewBox="0 0 100 100" preserveAspectRatio="none"></svg>
+  </div>
+  <div class="pe-empty">Selecione um andar no campo <strong>Planta</strong> acima pra carregar a imagem.</div>
+</div>

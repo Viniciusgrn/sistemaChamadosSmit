@@ -1,0 +1,404 @@
+import { useEffect, useState } from "react"
+import { X, Users, Check, Plus, Trash2, Briefcase } from 'lucide-react'
+import { Avatar, PriorityCell, StatusChip } from "./shared"
+import { PRIORITY_META, EMPRESAS_DISPONIVEIS, TERCEIRIZADAS_META, TERC_STATUS_META } from "../../pages/chamados/data"
+
+const C = {
+  surface:  '#ffffff',
+  surface2: '#fbfaf7',
+  hover:    '#f3f2ee',
+  border:   '#ececea',
+  border2:  '#e3e2df',
+  text1:    '#15161b',
+  text2:    '#5b5e68',
+  text3:    '#8b8d96',
+  accent:   '#4f46e5',
+  accentInk:'#2d2783',
+}
+
+export default function TicketModal({ ticket, teams, onClose, onUpdate, onAssign }) {
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  // Form pra adicionar nova terceirizada
+  const [novaEmpresa, setNovaEmpresa] = useState('')
+  const [novoProtocolo, setNovoProtocolo] = useState('')
+
+  if (!ticket) return null
+
+  const team = teams.find((t) => t.id === ticket.team)
+  const terceirizadas = ticket.terceirizadas || []
+
+  // Empresas que ainda não estão vinculadas
+  const empresasLivres = EMPRESAS_DISPONIVEIS.filter(
+    (e) => !terceirizadas.some((x) => x.empresa === e)
+  )
+  const podeAdicionar = novaEmpresa && novoProtocolo.trim()
+
+  const adicionarTerceirizada = () => {
+    if (!podeAdicionar) return
+    const lista = [...terceirizadas, {
+      empresa: novaEmpresa,
+      protocolo: novoProtocolo.trim(),
+      status_chamado: 'aberto',   // recém-criada
+      aberto_em: 'agora',
+      finalizado_em: null,
+      descricao: '',
+    }]
+    // Regra: chamado com terceirizada vinculada fica em_andamento (a menos
+    // que já esteja resolvido)
+    const novoStatus = ticket.status === 'resolvido' ? ticket.status : 'em_andamento'
+    onUpdate({ ...ticket, terceirizadas: lista, status: novoStatus })
+    setNovaEmpresa('')
+    setNovoProtocolo('')
+  }
+
+  const removerTerceirizada = (empresa) => {
+    const lista = terceirizadas.filter((x) => x.empresa !== empresa)
+    onUpdate({ ...ticket, terceirizadas: lista })
+  }
+
+  const atualizarProtocolo = (empresa, protocolo) => {
+    const lista = terceirizadas.map((x) =>
+      x.empresa === empresa ? { ...x, protocolo } : x
+    )
+    onUpdate({ ...ticket, terceirizadas: lista })
+  }
+
+  const ciclarStatusTerc = (empresa) => {
+    // Click na bolinha alterna apenas aberto ↔ finalizado.
+    // Outros estados (em_andamento, nao_resolvido) só vêm via API/dados externos.
+    const lista = terceirizadas.map((x) => {
+      if (x.empresa !== empresa) return x
+      const finalizando = x.status_chamado !== 'finalizado'
+      return {
+        ...x,
+        status_chamado: finalizando ? 'finalizado' : 'aberto',
+        finalizado_em: finalizando ? (x.finalizado_em || 'agora') : null,
+      }
+    })
+    onUpdate({ ...ticket, terceirizadas: lista })
+  }
+
+  return (
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-[200] flex items-center justify-center p-4 animate-fade-in"
+      style={{ backgroundColor: 'rgba(20,22,36,0.4)' }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-2xl rounded-lg overflow-hidden flex flex-col max-h-[90vh]"
+        style={{
+          backgroundColor: C.surface,
+          border: `1px solid ${C.border2}`,
+          boxShadow: '0 20px 48px -8px rgba(20,22,36,0.25)',
+        }}
+      >
+        {/* Header */}
+        <div
+          className="px-5 py-4 flex items-start justify-between gap-4"
+          style={{ borderBottom: `1px solid ${C.border}` }}
+        >
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+              <span className="font-mono text-[12px] font-semibold" style={{ color: C.text3 }}>
+                {ticket.code}
+              </span>
+              <PriorityCell p={ticket.priority} />
+            </div>
+            <h3 className="m-0 text-[16px] font-semibold tracking-tight" style={{ color: C.text1 }}>
+              {ticket.title}
+            </h3>
+            <div className="text-[12px] mt-0.5" style={{ color: C.text2 }}>
+              Aberto {ticket.date.toLowerCase()} às {ticket.openedAt}
+            </div>
+          </div>
+
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded flex items-center justify-center transition-colors flex-shrink-0"
+            style={{ color: C.text3 }}
+            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = C.hover; e.currentTarget.style.color = C.text1 }}
+            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = C.text3 }}
+            aria-label="Fechar"
+          >
+            <X className="w-4 h-4" strokeWidth={1.75} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto p-5">
+          {/* Grid de info */}
+          <div className="grid grid-cols-2 gap-4 mb-5">
+            <InfoItem label="Setor solicitante">
+              <span style={{ color: C.text1 }}>{ticket.client}</span>
+            </InfoItem>
+
+            <InfoItem label="Status">
+              <StatusChip s={ticket.status} />
+            </InfoItem>
+
+            <InfoItem label="Endereço" colSpan>
+              <span style={{ color: C.text1 }}>{ticket.address}</span>
+            </InfoItem>
+
+            <InfoItem label="Equipe atribuída">
+              {team ? (
+                <span className="inline-flex items-center gap-2">
+                  <Avatar initials={team.members[0].initials} color={team.members[0].color} size={22} />
+                  <span style={{ color: C.text1 }}>{team.name}</span>
+                  <span className="font-mono text-[11px]" style={{ color: C.text3 }}>· {team.id}</span>
+                </span>
+              ) : (
+                <span style={{ color: C.text3 }}>Não atribuído</span>
+              )}
+            </InfoItem>
+
+            <InfoItem label="Aberto em">
+              <span className="font-mono text-[13px]" style={{ color: C.text1 }}>
+                {ticket.date} · {ticket.openedAt}
+              </span>
+            </InfoItem>
+          </div>
+
+          {/* Terceirizadas vinculadas */}
+          <div className="mb-5">
+            <div className="flex items-center justify-between mb-2">
+              <div
+                className="text-[10px] uppercase tracking-wider font-medium flex items-center gap-1.5"
+                style={{ color: C.text3 }}
+              >
+                <Briefcase className="w-3 h-3" strokeWidth={1.75} />
+                Empresas terceirizadas
+              </div>
+              {terceirizadas.length > 0 && (
+                <span
+                  className="px-1.5 py-0.5 rounded text-[10px] font-medium"
+                  style={{ backgroundColor: C.surface2, color: C.text2, border: `1px solid ${C.border}` }}
+                >
+                  {terceirizadas.length} vinculada{terceirizadas.length !== 1 ? 's' : ''}
+                </span>
+              )}
+            </div>
+
+            {/* Lista de terceirizadas vinculadas */}
+            {terceirizadas.length > 0 && (
+              <ul className="list-none p-0 m-0 space-y-1.5 mb-2">
+                {terceirizadas.map((x) => {
+                  const meta = TERCEIRIZADAS_META[x.empresa] || {}
+                  const statusTerc = TERC_STATUS_META[x.status_chamado] || {}
+                  const concluido = x.status_chamado === 'finalizado' || x.status_chamado === 'nao_resolvido'
+                  return (
+                    <li
+                      key={x.empresa}
+                      className="flex items-center gap-2 px-2.5 py-1.5 rounded-md"
+                      style={{
+                        backgroundColor: meta.bg || C.surface2,
+                        border: `1px solid ${meta.dot ? `${meta.dot}55` : C.border}`,
+                      }}
+                    >
+                      {/* Bolinha de status do ChamadoTerceirizada - click cicla pelos estados */}
+                      <button
+                        type="button"
+                        onClick={() => ciclarStatusTerc(x.empresa)}
+                        title={`${statusTerc.label} · click para ${x.status_chamado === 'finalizado' ? 'reabrir' : 'finalizar'}`}
+                        className="w-3.5 h-3.5 rounded-full flex-shrink-0 transition-transform hover:scale-110"
+                        style={{
+                          backgroundColor: statusTerc.dot,
+                          boxShadow: concluido
+                            ? `0 0 0 2px #fff, 0 0 0 3px ${statusTerc.dot}`
+                            : `0 0 0 2px #fff`,
+                        }}
+                        aria-label={`Status ${statusTerc.label}`}
+                      />
+                      <span
+                        className="text-[12px] font-semibold tracking-tight"
+                        style={{ color: meta.fg || C.text1, minWidth: 70 }}
+                      >
+                        {x.empresa}
+                      </span>
+                      <input
+                        type="text"
+                        value={x.protocolo}
+                        onChange={(e) => atualizarProtocolo(x.empresa, e.target.value)}
+                        placeholder="Protocolo"
+                        className="flex-1 px-2 py-1 text-[12px] font-mono rounded focus:outline-none"
+                        style={{
+                          backgroundColor: '#ffffff',
+                          border: `1px solid ${C.border}`,
+                          color: C.text1,
+                        }}
+                        onFocus={(e) => (e.currentTarget.style.borderColor = C.accent)}
+                        onBlur={(e) => (e.currentTarget.style.borderColor = C.border)}
+                      />
+                      <span
+                        className="inline-flex items-center justify-center px-1.5 py-0.5 rounded text-[10px] font-medium tracking-tight leading-none flex-shrink-0 whitespace-nowrap"
+                        style={{
+                          backgroundColor: statusTerc.bg,
+                          color: statusTerc.fg,
+                          minWidth: 80,
+                        }}
+                      >
+                        {statusTerc.label}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => removerTerceirizada(x.empresa)}
+                        className="w-7 h-7 rounded flex items-center justify-center transition-colors flex-shrink-0"
+                        style={{ color: C.text3 }}
+                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#fee2e2'; e.currentTarget.style.color = '#dc2626' }}
+                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = C.text3 }}
+                        aria-label={`Remover ${x.empresa}`}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" strokeWidth={1.75} />
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+
+            {/* Form pra adicionar nova */}
+            {empresasLivres.length > 0 ? (
+              <div className="flex items-center gap-2">
+                <select
+                  value={novaEmpresa}
+                  onChange={(e) => setNovaEmpresa(e.target.value)}
+                  className="px-2.5 py-1.5 text-[12px] rounded-md focus:outline-none"
+                  style={{
+                    backgroundColor: C.surface2,
+                    border: `1px solid ${C.border}`,
+                    color: novaEmpresa ? C.text1 : C.text3,
+                    minWidth: 130,
+                  }}
+                >
+                  <option value="">Empresa…</option>
+                  {empresasLivres.map((e) => (
+                    <option key={e} value={e}>{e}</option>
+                  ))}
+                </select>
+                <input
+                  type="text"
+                  value={novoProtocolo}
+                  onChange={(e) => setNovoProtocolo(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); adicionarTerceirizada() } }}
+                  placeholder="Protocolo"
+                  className="flex-1 px-2.5 py-1.5 text-[12px] font-mono rounded-md focus:outline-none"
+                  style={{
+                    backgroundColor: C.surface2,
+                    border: `1px solid ${C.border}`,
+                    color: C.text1,
+                  }}
+                  onFocus={(e) => (e.currentTarget.style.borderColor = C.accent)}
+                  onBlur={(e) => (e.currentTarget.style.borderColor = C.border)}
+                />
+                <button
+                  type="button"
+                  onClick={adicionarTerceirizada}
+                  disabled={!podeAdicionar}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[11px] font-medium transition-colors"
+                  style={{
+                    backgroundColor: podeAdicionar ? C.accent : '#c7c5d9',
+                    color: '#fff',
+                    cursor: podeAdicionar ? 'pointer' : 'not-allowed',
+                  }}
+                  onMouseEnter={(e) => { if (podeAdicionar) e.currentTarget.style.backgroundColor = C.accentInk }}
+                  onMouseLeave={(e) => { if (podeAdicionar) e.currentTarget.style.backgroundColor = C.accent }}
+                >
+                  <Plus className="w-3.5 h-3.5" strokeWidth={2} />
+                  Vincular
+                </button>
+              </div>
+            ) : terceirizadas.length > 0 && (
+              <div className="text-[11px] italic" style={{ color: C.text3 }}>
+                Todas as empresas cadastradas já estão vinculadas a este chamado.
+              </div>
+            )}
+          </div>
+
+          {/* Mudar prioridade */}
+          <div>
+            <div
+              className="text-[10px] uppercase tracking-wider font-medium mb-2"
+              style={{ color: C.text3 }}
+            >
+              Mudar prioridade
+            </div>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {["urgente", "alta", "media", "baixa"].map((p) => {
+                const ativo = ticket.priority === p
+                return (
+                  <button
+                    key={p}
+                    onClick={() => onUpdate({ ...ticket, priority: p })}
+                    className="px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors"
+                    style={
+                      ativo
+                        ? { backgroundColor: '#eef0ff', color: '#2d2783', border: '1px solid #c7d2fe' }
+                        : { backgroundColor: C.surface2, color: C.text2, border: `1px solid ${C.border}` }
+                    }
+                  >
+                    {PRIORITY_META[p].label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div
+          className="px-5 py-3 flex items-center justify-end gap-2"
+          style={{ backgroundColor: C.surface2, borderTop: `1px solid ${C.border}` }}
+        >
+          <button
+            onClick={onClose}
+            className="px-3 py-1.5 rounded-md text-[12px] transition-colors"
+            style={{ color: C.text2 }}
+            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = C.hover; e.currentTarget.style.color = C.text1 }}
+            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = C.text2 }}
+          >
+            Fechar
+          </button>
+          <button
+            onClick={() => onAssign(ticket)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium transition-colors"
+            style={{ backgroundColor: '#ffffff', color: C.text1, border: `1px solid ${C.border2}` }}
+            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = C.hover)}
+            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#ffffff')}
+          >
+            <Users className="w-3.5 h-3.5" strokeWidth={1.75} />
+            {team ? 'Reatribuir equipe' : 'Atribuir equipe'}
+          </button>
+          <button
+            onClick={() => onUpdate({ ...ticket, status: 'resolvido' })}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium transition-colors"
+            style={{ backgroundColor: C.accent, color: '#fff' }}
+            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = C.accentInk)}
+            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = C.accent)}
+          >
+            <Check className="w-3.5 h-3.5" strokeWidth={2} />
+            Marcar como resolvido
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function InfoItem({ label, colSpan, children }) {
+  return (
+    <div className={colSpan ? 'col-span-2' : ''}>
+      <div className="text-[10px] uppercase tracking-wider font-medium mb-1" style={{ color: C.text3 }}>
+        {label}
+      </div>
+      <div className="text-[13px]">
+        {children}
+      </div>
+    </div>
+  )
+}
