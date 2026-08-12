@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react"
 import { Search, SlidersHorizontal, X } from 'lucide-react'
 import { PriorityCell, StatusChip } from "./shared"
-import { TERCEIRIZADAS_META, PRIORITY_META, TERC_STATUS_META } from "../../pages/chamados/data"
+import { TERCEIRIZADAS_META, PRIORITY_META, TERC_STATUS_META, STATUS_META, STATUS_EDITAVEIS } from "../../pages/chamados/data"
 import FiltrosAvancados from "./FiltrosAvancados"
 import TerceirizadaModal from "./TerceirizadaModal"
 
@@ -18,21 +18,27 @@ const C = {
   accentInk:'#2d2783',
 }
 
-const STATUS_CHIPS = [
-  { id: "ativos",               label: "Abertos / Em andamento" },
-  { id: "em_manutencao",        label: "Em manutenção" },
-  { id: "agendado",             label: "Agendados" },
-  { id: "enviado_terceirizada", label: "Enviado p/ terceirizada" },
-  { id: "resolvido",            label: "Resolvidos" },
-  { id: "todos",                label: "Todos" },
-]
+// Chamado não encerrado fica todo na mesma aba, seja qual for a etapa —
+// agendado e encaminhado p/ terceirizada continuam sendo trabalho em aberto.
+// "Em manutenção" é a exceção: virou ordem no app de manutenção e tem fluxo
+// próprio, então fica na aba dele.
+export const STATUS_ABERTOS = ['aberto', 'em_andamento', 'agendado', 'em_terceirizada']
+// resolvido e cancelado saíram da fila: os dois juntos são "finalizados"
+export const STATUS_FINALIZADOS = ['resolvido', 'cancelado']
 
-const STATUS_ATIVOS = ['aberto', 'em_andamento']
+const STATUS_CHIPS = [
+  { id: "abertos",          label: "Em aberto" },
+  { id: "em_manutencao",    label: "Em manutenção" },
+  { id: "com_terceirizada", label: "Com terceirizada" },
+  { id: "finalizados",      label: "Finalizados" },
+  { id: "todos",            label: "Todos" },
+]
 
 const DEFAULT_FILTROS = {
   data_inicio: '',
   data_fim:    '',
   prioridades: [],
+  status:      [],      // recorte por etapa dentro da aba
   equipe:      'todas',
   equipe_id:   null,
   secretaria:  '',
@@ -63,14 +69,26 @@ function iso(d) {
   return `${yyyy}-${mm}-${dd}`
 }
 
-export default function TicketsTable({ tickets, teams = [], query, setQuery, onOpen }) {
-  const [statusFilter, setStatusFilter] = useState("ativos")
+export default function TicketsTable({ tickets, teams = [], query, setQuery, onOpen, onUpdate }) {
+  const [statusFilter, setStatusFilter] = useState("abertos")
   const [filtroTerc, setFiltroTerc] = useState(null)
   const [filtros, setFiltros] = useState(DEFAULT_FILTROS)
   const [painelAberto, setPainelAberto] = useState(false)
   const [openTerc, setOpenTerc] = useState(null)   // item flatten ativo no modal
 
-  const aba = statusFilter === 'enviado_terceirizada'
+  const aba = statusFilter === 'com_terceirizada'
+
+  // etapas que o filtro fino oferece: só as que existem na aba escolhida
+  const statusDisponiveis =
+    statusFilter === 'abertos'     ? STATUS_ABERTOS :
+    statusFilter === 'finalizados' ? STATUS_FINALIZADOS :
+    [...STATUS_ABERTOS, 'em_manutencao', ...STATUS_FINALIZADOS]
+
+  // trocar de aba zera o recorte por etapa - senão a lista some sem explicação
+  const trocarAba = (id) => {
+    setStatusFilter(id)
+    setFiltros((f) => (f.status.length ? { ...f, status: [] } : f))
+  }
 
   // Parseia secretarias/divisões a partir dos clients dos tickets
   const parsedSecretarias = useMemo(() => {
@@ -86,13 +104,18 @@ export default function TicketsTable({ tickets, teams = [], query, setQuery, onO
   }, [tickets])
 
   const filtered = tickets.filter((t) => {
-    if (statusFilter === 'ativos') {
-      if (!STATUS_ATIVOS.includes(t.status)) return false
-    } else if (statusFilter === 'enviado_terceirizada') {
-      // Critério agora é ter array de terceirizadas (status do chamado interno fica "em_andamento")
+    if (statusFilter === 'abertos') {
+      if (!STATUS_ABERTOS.includes(t.status)) return false
+    } else if (statusFilter === 'finalizados') {
+      if (!STATUS_FINALIZADOS.includes(t.status)) return false
+    } else if (statusFilter === 'com_terceirizada') {
+      // Critério é ter terceirizada vinculada, independente do status interno
       if (!Array.isArray(t.terceirizadas) || t.terceirizadas.length === 0) return false
       if (filtroTerc && !t.terceirizadas.some((x) => x.empresa === filtroTerc)) return false
     } else if (statusFilter !== "todos" && t.status !== statusFilter) return false
+
+    // recorte fino por etapa, dentro da aba
+    if (filtros.status.length > 0 && !filtros.status.includes(t.status)) return false
 
     // Range de datas (compara ISO derivado do mock com inicio/fim do filtro)
     if (filtros.data_inicio || filtros.data_fim) {
@@ -147,11 +170,12 @@ export default function TicketsTable({ tickets, teams = [], query, setQuery, onO
   }, [filtered, aba, filtroTerc])
 
   const counts = useMemo(() => {
-    const c = { todos: tickets.length, ativos: 0, enviado_terceirizada: 0 }
+    const c = { todos: tickets.length, abertos: 0, finalizados: 0, com_terceirizada: 0 }
     tickets.forEach((t) => {
       c[t.status] = (c[t.status] || 0) + 1
-      if (STATUS_ATIVOS.includes(t.status)) c.ativos++
-      if (Array.isArray(t.terceirizadas) && t.terceirizadas.length > 0) c.enviado_terceirizada++
+      if (STATUS_ABERTOS.includes(t.status)) c.abertos++
+      if (STATUS_FINALIZADOS.includes(t.status)) c.finalizados++
+      if (Array.isArray(t.terceirizadas) && t.terceirizadas.length > 0) c.com_terceirizada++
     })
     return c
   }, [tickets])
@@ -172,6 +196,7 @@ export default function TicketsTable({ tickets, teams = [], query, setQuery, onO
   const filtrosAtivos =
     ((filtros.data_inicio || filtros.data_fim) ? 1 : 0) +
     (filtros.prioridades.length > 0 ? 1 : 0) +
+    (filtros.status.length > 0 ? 1 : 0) +
     (filtros.equipe !== 'todas' ? 1 : 0) +
     (filtros.secretaria ? 1 : 0) +
     (filtros.divisao ? 1 : 0)
@@ -191,6 +216,13 @@ export default function TicketsTable({ tickets, teams = [], query, setQuery, onO
       key: 'prio',
       label: `Prioridade: ${filtros.prioridades.map((p) => PRIORITY_META[p].label).join(', ')}`,
       remover: () => setFiltros((f) => ({ ...f, prioridades: [] })),
+    })
+  }
+  if (filtros.status.length > 0) {
+    chipsAplicados.push({
+      key: 'status',
+      label: `Status: ${filtros.status.map((s) => STATUS_META[s].curto || STATUS_META[s].label).join(', ')}`,
+      remover: () => setFiltros((f) => ({ ...f, status: [] })),
     })
   }
   if (filtros.equipe !== 'todas') {
@@ -230,7 +262,7 @@ export default function TicketsTable({ tickets, teams = [], query, setQuery, onO
           return (
             <button
               key={c.id}
-              onClick={() => setStatusFilter(c.id)}
+              onClick={() => trocarAba(c.id)}
               className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors"
               style={
                 ativo
@@ -255,7 +287,7 @@ export default function TicketsTable({ tickets, teams = [], query, setQuery, onO
       </div>
 
       {/* Sub-filtro por empresa terceirizada */}
-      {statusFilter === 'enviado_terceirizada' && empresasDistintas.length > 0 && (
+      {statusFilter === 'com_terceirizada' && empresasDistintas.length > 0 && (
         <div
           className="px-4 py-2 flex items-center gap-2 flex-wrap"
           style={{ borderBottom: `1px solid ${C.border}`, backgroundColor: C.surface2 }}
@@ -371,6 +403,7 @@ export default function TicketsTable({ tickets, teams = [], query, setQuery, onO
         setFiltros={setFiltros}
         parsedSecretarias={parsedSecretarias}
         equipes={teams}
+        statusDisponiveis={statusDisponiveis}
       />
 
       {/* Chips de filtros avançados aplicados */}
@@ -422,6 +455,7 @@ export default function TicketsTable({ tickets, teams = [], query, setQuery, onO
           <TabelaChamados
             linhas={ordered}
             onOpen={onOpen}
+            onUpdate={onUpdate}
           />
         )}
       </div>
@@ -440,7 +474,27 @@ export default function TicketsTable({ tickets, teams = [], query, setQuery, onO
   )
 }
 
-function TabelaChamados({ linhas, onOpen }) {
+// Chip normal que vira <select> ao clicar - edição rápida sem abrir o modal.
+// O <select> fica invisível por cima do chip, então o visual não muda.
+function SelectInline({ valor, opcoes, rotulo, onChange, render }) {
+  return (
+    <div className="relative inline-block group/sel" title="Clique para alterar">
+      {render}
+      <select
+        value={valor}
+        onChange={(e) => onChange(e.target.value)}
+        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+        aria-label="Alterar"
+      >
+        {opcoes.map((o) => (
+          <option key={o} value={o}>{rotulo(o)}</option>
+        ))}
+      </select>
+    </div>
+  )
+}
+
+function TabelaChamados({ linhas, onOpen, onUpdate }) {
   return (
     <table className="w-full text-[12px]" style={{ borderCollapse: 'collapse' }}>
       <thead>
@@ -481,8 +535,28 @@ function TabelaChamados({ linhas, onOpen }) {
               <td className="px-4 py-2.5 font-mono font-semibold" style={{ color: C.text1 }}>{t.code}</td>
               <td className="px-4 py-2.5" style={{ color: C.text1 }}>{t.title}</td>
               <td className="px-4 py-2.5" style={{ color: C.text2 }}>{t.address}</td>
-              <td className="px-4 py-2.5"><PriorityCell p={t.priority} /></td>
-              <td className="px-4 py-2.5"><StatusChip s={t.status} terceirizadas={t.terceirizadas} /></td>
+              <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
+                {onUpdate
+                  ? <SelectInline
+                      valor={t.priority}
+                      opcoes={['urgente', 'alta', 'media', 'baixa']}
+                      rotulo={(p) => PRIORITY_META[p].label}
+                      onChange={(p) => onUpdate(t, { priority: p })}
+                      render={<PriorityCell p={t.priority} escalonada={t.urgenciaEscalonada} dias={t.diasEmAberto} />}
+                    />
+                  : <PriorityCell p={t.priority} escalonada={t.urgenciaEscalonada} dias={t.diasEmAberto} />}
+              </td>
+              <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
+                {onUpdate
+                  ? <SelectInline
+                      valor={t.statusReal}
+                      opcoes={STATUS_EDITAVEIS}
+                      rotulo={(s) => STATUS_META[s].label}
+                      onChange={(s) => onUpdate(t, { status: s })}
+                      render={<StatusChip s={t.status} terceirizadas={t.terceirizadas} />}
+                    />
+                  : <StatusChip s={t.status} terceirizadas={t.terceirizadas} />}
+              </td>
               <td className="px-4 py-2.5" style={{ color: C.text2 }}>{t.client}</td>
               <td className="px-4 py-2.5 font-mono text-[11px]" style={{ color: C.text3 }}>
                 {t.date} · {t.openedAt}

@@ -5,6 +5,9 @@ import { useAuth } from '../contexts/AuthContext'
 
 import AppLayout from './AppLayout'
 import PortalLayout from './PortalLayout'
+import CampoLayout from './CampoLayout'
+import ChamadoAtual from '../pages/campo/ChamadoAtual'
+import ChamadosCampo from '../pages/campo/ChamadosCampo'
 import Placeholder from '../pages/Placeholder'
 import Login from '../pages/auth/Login'
 import Perfil from '../pages/perfil/Perfil'
@@ -55,7 +58,35 @@ export default function AppRoutes() {
     )
   }
 
-  // DIT: sistema completo
+  // Técnico e aprendiz: versão de campo, mobile-first. Mesmas telas pros dois —
+  // o que muda são as ações, e isso o backend também recusa (core/permissions).
+  if (perfil === 'tecnico' || perfil === 'aprendiz') {
+    return (
+      <Routes>
+        <Route element={<CampoLayout />}>
+          <Route index element={<Navigate to="/chamado-atual" replace />} />
+
+          <Route path="chamado-atual" element={<ChamadoAtual />} />
+          <Route path="chamados" element={<ChamadosCampo />} />
+          <Route path="manutencao" element={<Manutencao />} />
+
+          <Route path="equipamentos" element={<Equipamentos />} />
+          <Route path="ramais" element={<Ramais />} />
+          <Route path="automoveis" element={<Automoveis />} />
+          <Route path="unidades" element={<Unidades />} />
+
+          <Route path="tecnicos" element={<Tecnicos />} />
+          <Route path="equipes" element={<Equipes />} />
+          <Route path="terceirizadas" element={<Terceirizadas />} />
+
+          <Route path="perfil" element={<Perfil />} />
+          <Route path="*" element={<Navigate to="/chamado-atual" replace />} />
+        </Route>
+      </Routes>
+    )
+  }
+
+  // Gestão (despachante, chefe, secretário, TI): sistema completo
   return (
     <Routes>
       <Route element={<AppLayout />}>

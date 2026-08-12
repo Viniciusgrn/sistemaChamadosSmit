@@ -7,7 +7,8 @@ export const terceirizadasApi = {
   editar:  (id, body) => apiFetch(`/terceirizada/empresas/${id}/`, { method: 'PATCH', body }),
   excluir: (id)       => apiFetch(`/terceirizada/empresas/${id}/`, { method: 'DELETE' }),
 
-  // chamados delegados
-  criarChamado:  (body)     => apiFetch('/terceirizada/chamados-externos/', { method: 'POST', body }),
-  editarChamado: (id, body) => apiFetch(`/terceirizada/chamados-externos/${id}/`, { method: 'PATCH', body }),
+  // chamados delegados (ChamadoTerceirizada)
+  criarChamado:   (body)     => apiFetch('/terceirizada/chamados-externos/', { method: 'POST', body }),
+  editarChamado:  (id, body) => apiFetch(`/terceirizada/chamados-externos/${id}/`, { method: 'PATCH', body }),
+  excluirChamado: (id)       => apiFetch(`/terceirizada/chamados-externos/${id}/`, { method: 'DELETE' }),
 }

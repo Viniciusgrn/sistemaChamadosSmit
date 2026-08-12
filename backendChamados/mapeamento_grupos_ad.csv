@@ -1,6 +1,6 @@
 ﻿grupo_ad,tipo,qtd_usuarios,id_banco,rotulo_banco,confianca,observacao
 Divisao RESOLO,divisao,65,953,SMP · Divisão de Regularização de Parcelamentos do Solo (RESOLO),alta,nome bate com a sigla
-Divisao de Apoio ao Desenvolvimento da Industria e Comercio,divisao,6,895,SMGDEI · Divisão de Apoio ao Desenvolvimento da Indústria e Comércio,alta,nome idêntico
+Divisao de Apoio ao Desenvolvimento da Industria e Comercio,divisao,6,895,SMGDE · Divisão de Apoio ao Desenvolvimento da Indústria e Comércio,alta,nome idêntico
 Divisao de Contabilidade,divisao,76,943,SMF · Divisão de Contabilidade,alta,nome idêntico
 Divisao de Habitacao,divisao,21,949,SMH · Divisão de Habitação,alta,nome idêntico
 Divisao de Licitacoes Compras e Almoxarifado,divisao,111,920,"SMA · Divisão de Licitação, Compras e Almoxarifado (DLCA)",alta,singular/plural
@@ -10,7 +10,7 @@ Divisao de Projetos e Posturas,divisao,58,875,SMO · Divisão de Projetos e Post
 Divisao de Receita,divisao,73,947,SMF · Divisão de Receita,alta,nome idêntico
 Divisao de Recursos Humanos,divisao,56,922,SMA · Divisão de Recursos Humanos (DIRH),alta,nome idêntico
 Divisao de Seguranca do Trabalho,divisao,30,963,SESMT · SESMT,alta,confirmado pelo usuario
-Divisao de Informatica,divisao,52,898,SMGDEI · Divisão de Inovação e Tecnologia (DIT),alta,confirmado: nome antigo da DIT
+Divisao de Informatica,divisao,52,898,SMIT · Divisão de Inovação e Tecnologia (DIT),alta,confirmado: nome antigo da DIT
 Divisao de Fiscalizacao Imobiliaria,divisao,55,945,SMF · Divisão de Fiscalização (AFTI),alta,confirmado: AFTI = imobiliarios
 Divisao de Fiscalizacao Mobiliaria,divisao,17,946,SMF · Divisão de Fiscalização (AFTM),alta,confirmado: AFTM = mobiliarios
 Divisao de Comunicacao,divisao,20,877,SECOM · Divisão de Comunicação Social,alta,confirmado: SECOM
@@ -18,14 +18,14 @@ Divisao de Protocolo,divisao,30,924,SMA · Seção de Protocolo,alta,confirmado:
 Divisao de Cadastro Tecnico Imobiliario - Consulta,divisao,33,945,SMF · Divisão de Fiscalização (AFTI),media,PROVISORIO: respondem ao AFTI — ver RESSALVAS_MAPEAMENTO_AD.md
 Divisao de Cadastro Tecnico Imobiliario - Edicao,divisao,128,945,SMF · Divisão de Fiscalização (AFTI),media,PROVISORIO: respondem ao AFTI — ver RESSALVAS_MAPEAMENTO_AD.md
 Divisao de Apoio Financeiro,divisao,22,944,SMF · Divisão de Fiscalização (Tesouraria),media,PROVISORIO: apoio financeiro = tesouraria — ver RESSALVAS_MAPEAMENTO_AD.md
-Divisao de Convenios,divisao,21,965,SMGDEI · Divisão de Convênios,media,PROVISORIO: divisão criada agora na SMGDEI — ver RESSALVAS_MAPEAMENTO_AD.md
+Divisao de Convenios,divisao,21,965,SMGDE · Divisão de Convênios,media,PROVISORIO: divisão criada agora na SMGDE — ver RESSALVAS_MAPEAMENTO_AD.md
 Secretaria de Administracao,secretaria,16,12,SMA,alta,
 Secretaria de Assuntos Juridicos,secretaria,98,5,SMAJ,alta,
 Secretaria de Assuntos Juridicos - Trabalhista,secretaria,6,5,SMAJ,alta,sufixo = grupo de permissão
 Secretaria de Comunicacao,secretaria,70,4,SECOM,alta,
 Secretaria de Educacao,secretaria,130,11,SME,alta,
 Secretaria de Financas - Recepcao,secretaria,33,15,SMF,alta,sufixo = grupo de permissão
-Secretaria de Governo,secretaria,46,7,SMGDEI,alta,
+Secretaria de Governo,secretaria,46,7,SMGDE,alta,
 Secretaria de Obras,secretaria,104,3,SMO,alta,
 Secretaria de Obras - Transfer,secretaria,26,3,SMO,alta,sufixo = grupo de permissão
 Secretaria de Planejamento,secretaria,71,17,SMP,alta,

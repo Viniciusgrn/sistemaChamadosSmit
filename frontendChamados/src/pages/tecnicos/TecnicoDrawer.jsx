@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { X, Pencil, Building2, User, Briefcase, History, Clock } from 'lucide-react'
-import { RESP_META, STATUS_META, MOTIVO_META, SEED_HISTORICO } from './data'
+import { RESP_META, STATUS_META, MOTIVO_META } from './data'
+import { useHistoricoTecnico } from '../../hooks/useTecnicos'
 
 const C = {
   surface:  '#ffffff',
@@ -18,7 +19,7 @@ const C = {
 export default function TecnicoDrawer({ tecnico, onClose, onEditar }) {
   const status = STATUS_META[tecnico.status]
   const resps = (tecnico.responsabilidades || []).map((id) => RESP_META[id])
-  const historico = SEED_HISTORICO[tecnico.id] || []
+  const { data: historico = [] } = useHistoricoTecnico(tecnico.id)
 
   const iniciais = tecnico.nome_completo
     .split(' ')
@@ -73,8 +74,17 @@ export default function TecnicoDrawer({ tecnico, onClose, onEditar }) {
                 <div className="text-[16px] font-semibold tracking-tight truncate" style={{ color: C.text1 }}>
                   {tecnico.nome_completo}
                 </div>
-                <div className="text-[11px] font-mono mt-0.5" style={{ color: C.text2 }}>
-                  {tecnico.matricula}
+                <div className="flex items-center gap-2 mt-0.5">
+                  {tecnico.cargo_display && (
+                    <span className="text-[11px] font-medium" style={{ color: C.text2 }}>
+                      {tecnico.cargo_display}
+                    </span>
+                  )}
+                  {tecnico.matricula && (
+                    <span className="text-[11px] font-mono" style={{ color: C.text3 }}>
+                      {tecnico.matricula}
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                   {resps.map((r) => (
@@ -171,8 +181,8 @@ export default function TecnicoDrawer({ tecnico, onClose, onEditar }) {
             </div>
           ) : (
             <ul className="list-none p-0 m-0">
-              {historico.map((h, i) => (
-                <AtendimentoItem key={i} item={h} />
+              {historico.map((h) => (
+                <AtendimentoItem key={h.id} item={h} tecnicoNome={tecnico.primeiro_nome} />
               ))}
             </ul>
           )}
@@ -228,9 +238,21 @@ function InfoLinha({ icon: Icon, label, valor }) {
   )
 }
 
-function AtendimentoItem({ item }) {
-  const motivo = item.motivo != null ? MOTIVO_META[item.motivo] : null
-  const emAndamento = !item.fim
+// Formata "HH:MM" pra hoje, "dd/mm HH:MM" pros dias anteriores
+function horaCurta(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  const hora = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  const hoje = new Date()
+  const mesmoDia = d.toDateString() === hoje.toDateString()
+  return mesmoDia ? hora : `${d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} ${hora}`
+}
+
+function AtendimentoItem({ item, tecnicoNome }) {
+  const motivo = item.motivo_encerramento != null ? MOTIVO_META[item.motivo_encerramento] : null
+  const emAndamento = !item.encerrado_em
+  // "com" = os outros da equipe, sem repetir o próprio técnico
+  const parceiros = (item.parceiros || []).filter((p) => p !== tecnicoNome)
   return (
     <li
       className="px-5 py-3 transition-colors"
@@ -242,17 +264,22 @@ function AtendimentoItem({ item }) {
         <div className="flex-1 min-w-0">
           <div className="flex items-baseline gap-2">
             <span className="font-mono text-[11px] font-semibold" style={{ color: C.text1 }}>
-              {item.chamado}
+              #{item.chamado}
             </span>
             <span className="text-[12px] truncate" style={{ color: C.text2 }}>
-              {item.titulo}
+              {item.chamado_titulo}
             </span>
           </div>
           <div className="flex items-center gap-2 mt-1 text-[10px]" style={{ color: C.text3 }}>
             <Clock className="w-3 h-3" strokeWidth={1.75} />
-            {item.inicio}{item.fim ? ` – ${item.fim}` : ' · em andamento'}
-            <span style={{ color: C.text3 }}>·</span>
-            <span>com {item.parceiro}</span>
+            {horaCurta(item.iniciado_em)}
+            {item.encerrado_em ? ` - ${horaCurta(item.encerrado_em)}` : ' · em andamento'}
+            {parceiros.length > 0 && (
+              <>
+                <span style={{ color: C.text3 }}>·</span>
+                <span>com {parceiros.join(', ')}</span>
+              </>
+            )}
           </div>
         </div>
 

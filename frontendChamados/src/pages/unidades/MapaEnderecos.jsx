@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import { Crosshair } from 'lucide-react'
 
 import { MAPA_CENTRO, MAPA_ZOOM } from './data'
 
@@ -31,8 +32,51 @@ function FlyToSelected({ endereco }) {
   return null
 }
 
+/**
+ * Enquadra o mapa nos endereços que estão em tela.
+ *
+ * Com zoom fixo, filtrar por secretaria ou buscar por bairro deixava os
+ * resultados fora da vista — e numa tela de celular não dá pra "procurar
+ * arrastando". Também corrige o tamanho do container, que nasce zerado quando
+ * o mapa monta dentro de uma aba.
+ */
+function EnquadrarNosPinos({ enderecos, expandirPara }) {
+  const map = useMap()
+  const chave = enderecos.map((e) => e.id).join(',')
+
+  useEffect(() => {
+    // Coordenada zerada é endereço sem geocodificação: entrar no cálculo
+    // jogaria o enquadramento pro meio do Atlântico.
+    const pontos = enderecos
+      .filter((e) => Number(e.latitude) && Number(e.longitude))
+      .map((e) => [Number(e.latitude), Number(e.longitude)])
+
+    const enquadrar = () => {
+      if (!pontos.length) return
+      // invalidateSize ANTES: o container pode ter nascido com tamanho zero
+      // (aba oculta, layout ainda montando) e o fitBounds usaria a medida velha
+      map.invalidateSize()
+      // animate:false é obrigatório aqui — o invalidateSize logo acima inicia
+      // uma animação de pan, e um fitBounds animado em seguida é descartado
+      // silenciosamente (o mapa fica no zoom inicial e metade dos pinos some)
+      if (pontos.length === 1) map.setView(pontos[0], 16, { animate: false })
+      else map.fitBounds(L.latLngBounds(pontos), { padding: [40, 40], maxZoom: 16, animate: false })
+    }
+
+    expandirPara?.(enquadrar)
+    enquadrar()
+    // reenquadra depois do layout assentar (animação de entrada, teclado…)
+    const t = setTimeout(enquadrar, 150)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map, chave])
+
+  return null
+}
+
 export default function MapaEnderecos({ enderecos, selecionado, onSelect, predioPorEndereco = {}, onAbrirPlanta }) {
   const markerRefs = useRef({})
+  const reenquadrarRef = useRef(null)
 
   useEffect(() => {
     if (selecionado && markerRefs.current[selecionado.id]) {
@@ -68,7 +112,8 @@ export default function MapaEnderecos({ enderecos, selecionado, onSelect, predio
               }}
             >
               <Popup>
-                <div className="text-[13px] leading-snug">
+                {/* max-w segura o balão dentro da tela em 375px */}
+                <div className="text-[13px] leading-snug max-w-[240px]">
                   <div className="font-semibold text-neutral-900">
                     {e.rua}, {e.numero}
                   </div>
@@ -103,7 +148,7 @@ export default function MapaEnderecos({ enderecos, selecionado, onSelect, predio
                   {predioId != null && onAbrirPlanta && (
                     <button
                       onClick={() => onAbrirPlanta(predioId)}
-                      className="mt-2 w-full px-2.5 py-1.5 rounded text-[12px] font-medium transition-colors"
+                      className="mt-2 w-full px-2.5 min-h-[40px] rounded text-[12px] font-medium transition-colors"
                       style={{ backgroundColor: '#4f46e5', color: '#fff' }}
                       onMouseEnter={(ev) => (ev.currentTarget.style.backgroundColor = '#2d2783')}
                       onMouseLeave={(ev) => (ev.currentTarget.style.backgroundColor = '#4f46e5')}
@@ -117,8 +162,29 @@ export default function MapaEnderecos({ enderecos, selecionado, onSelect, predio
           )
         })}
 
+        <EnquadrarNosPinos
+          enderecos={enderecos}
+          expandirPara={(fn) => { reenquadrarRef.current = fn }}
+        />
         <FlyToSelected endereco={selecionado} />
       </MapContainer>
+
+      {/* Voltar a ver todos os endereços do filtro atual */}
+      <button
+        onClick={() => reenquadrarRef.current?.()}
+        className="absolute top-3 right-3 w-11 h-11 rounded-lg flex items-center justify-center"
+        style={{
+          backgroundColor: '#ffffff',
+          border: '1px solid #e3e2df',
+          boxShadow: '0 2px 8px rgba(20,22,36,0.15)',
+          color: '#5b5e68',
+          zIndex: 500,
+        }}
+        aria-label="Enquadrar todos os endereços"
+        title="Enquadrar todos os endereços"
+      >
+        <Crosshair className="w-5 h-5" strokeWidth={1.75} />
+      </button>
     </div>
   )
 }

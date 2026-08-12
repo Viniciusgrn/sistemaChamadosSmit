@@ -1,8 +1,8 @@
-import { useEffect, useMemo } from 'react'
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet'
+import { useEffect, useMemo, useState } from 'react'
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import { X, MapPin, Users } from 'lucide-react'
+import { X, MapPin, Users, ChevronUp, ChevronDown, Crosshair } from 'lucide-react'
 
 import { PRIORITY_META } from '../../pages/chamados/data'
 
@@ -61,7 +61,45 @@ function pinEquipe(cor) {
 const CENTRO_DEFAULT = [-22.9519, -46.5419]   // Centro
 const ZOOM_DEFAULT = 14
 
+/**
+ * Enquadra o mapa em todos os pinos.
+ *
+ * Numa tela de celular o zoom fixo costuma deixar metade dos chamados fora da
+ * vista, e não dá pra "dar uma olhada geral" sem arrastar. `botao` faz o mesmo
+ * enquadramento sob demanda, depois que a pessoa mexeu no mapa.
+ */
+function Enquadrar({ pontos, aoPronto }) {
+  const map = useMap()
+  useEffect(() => {
+    const fn = () => enquadra(map, pontos)
+    aoPronto?.(fn)
+    fn()
+    // o container nasce com 0px enquanto o modal anima: refaz depois
+    const t = setTimeout(fn, 150)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map, JSON.stringify(pontos)])
+  return null
+}
+
+function enquadra(map, pontos) {
+  if (!pontos.length) return
+  map.invalidateSize()
+  // animate:false: fitBounds animado logo após invalidateSize é descartado
+  if (pontos.length === 1) {
+    map.setView(pontos[0], 16, { animate: false })
+    return
+  }
+  map.fitBounds(L.latLngBounds(pontos), { padding: [48, 48], maxZoom: 16, animate: false })
+}
+
 export default function MapaChamadosModal({ tickets = [], teams = [], onClose }) {
+  // no celular a legenda ocupa um terço da tela: começa recolhida
+  const [legendaAberta, setLegendaAberta] = useState(
+    typeof window === 'undefined' ? true : window.innerWidth >= 640
+  )
+  const [reenquadrar, setReenquadrar] = useState(null)
+
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') onClose() }
     document.addEventListener('keydown', onKey)
@@ -87,37 +125,45 @@ export default function MapaChamadosModal({ tickets = [], teams = [], onClose })
     return c
   }, [chamadosVisiveis])
 
+  const pontos = useMemo(() => [
+    ...chamadosVisiveis.map((t) => [t.latitude, t.longitude]),
+    ...equipesEmCampo.map((e) => [e.latitude, e.longitude]),
+  ], [chamadosVisiveis, equipesEmCampo])
+
   return (
     <div
-      className="fixed inset-0 z-[200] flex items-center justify-center p-4 animate-fade-in"
+      className="fixed inset-0 z-[200] flex items-center justify-center sm:p-4 animate-fade-in"
       style={{ backgroundColor: 'rgba(20,22,36,0.55)' }}
       onClick={onClose}
     >
+      {/* Celular: ocupa a tela toda — mapa com margem é mapa pequeno demais.
+          Desktop: volta a ser um card centralizado. */}
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full h-full max-w-[1080px] max-h-[88vh] rounded-lg overflow-hidden flex flex-col"
+        className="w-full h-full sm:max-w-[1080px] sm:max-h-[88vh] sm:rounded-lg overflow-hidden flex flex-col"
         style={{
           backgroundColor: C.surface,
           border: `1px solid ${C.border}`,
           boxShadow: '0 20px 48px -8px rgba(20,22,36,0.4)',
+          paddingBottom: 'env(safe-area-inset-bottom, 0px)',
         }}
-      > 
+      >
         <div
-          className="flex-shrink-0 px-5 py-3 flex items-center justify-between gap-4"
+          className="flex-shrink-0 px-4 sm:px-5 py-2.5 sm:py-3 flex items-center justify-between gap-3"
           style={{ borderBottom: `1px solid ${C.divider}` }}
         >
           <div className="flex items-center gap-3 min-w-0">
             <div
-              className="w-9 h-9 rounded-md inline-flex items-center justify-center"
+              className="w-9 h-9 rounded-md hidden sm:inline-flex items-center justify-center flex-shrink-0"
               style={{ backgroundColor: '#ccd1fb' }}
             >
               <MapPin className="w-4.5 h-4.5" strokeWidth={1.75} style={{ color: '#4f46e5' }} />
             </div>
             <div className="min-w-0">
-              <h3 className="m-0 text-[15px] font-semibold tracking-tight" style={{ color: C.text1 }}>
+              <h3 className="m-0 text-[14px] sm:text-[15px] font-semibold tracking-tight" style={{ color: C.text1 }}>
                 Mapa dos chamados
               </h3>
-              <div className="text-[11px] mt-0.5" style={{ color: C.text2 }}>
+              <div className="text-[11px] mt-0.5 truncate" style={{ color: C.text2 }}>
                 {chamadosVisiveis.length} chamado{chamadosVisiveis.length !== 1 ? 's' : ''} ativo{chamadosVisiveis.length !== 1 ? 's' : ''}
                 {' · '}
                 {equipesEmCampo.length} equipe{equipesEmCampo.length !== 1 ? 's' : ''} em campo
@@ -125,15 +171,14 @@ export default function MapaChamadosModal({ tickets = [], teams = [], onClose })
             </div>
           </div>
 
+          {/* 44px: alvo de toque mínimo confortável no celular */}
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded flex items-center justify-center transition-colors"
+            className="w-11 h-11 -mr-2 sm:w-8 sm:h-8 sm:mr-0 rounded flex items-center justify-center flex-shrink-0 transition-colors"
             style={{ color: C.text3 }}
-            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f3f2ee'; e.currentTarget.style.color = C.text1 }}
-            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = C.text3 }}
             aria-label="Fechar"
           >
-            <X className="w-4 h-4" strokeWidth={1.75} />
+            <X className="w-5 h-5 sm:w-4 sm:h-4" strokeWidth={1.75} />
           </button>
         </div>
 
@@ -150,6 +195,7 @@ export default function MapaChamadosModal({ tickets = [], teams = [], onClose })
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
+            <Enquadrar pontos={pontos} aoPronto={(fn) => setReenquadrar(() => fn)} />
 
             {/* Pins de chamados */}
             {chamadosVisiveis.map((t) => {
@@ -162,7 +208,8 @@ export default function MapaChamadosModal({ tickets = [], teams = [], onClose })
                   zIndexOffset={t.priority === 'urgente' ? 1000 : 0}
                 >
                   <Popup>
-                    <div className="text-[13px] leading-snug min-w-[200px]">
+                    {/* max-w evita o balão estourar a lateral em 375px */}
+                    <div className="text-[13px] leading-snug min-w-[180px] max-w-[240px]">
                       <div className="flex items-center gap-1.5 mb-1">
                         <span
                           className="font-mono text-[11px] font-semibold"
@@ -209,7 +256,7 @@ export default function MapaChamadosModal({ tickets = [], teams = [], onClose })
                 zIndexOffset={2000}
               >
                 <Popup>
-                  <div className="text-[13px] leading-snug min-w-[200px]">
+                  <div className="text-[13px] leading-snug min-w-[180px] max-w-[240px]">
                     <div className="flex items-center gap-1.5 mb-1">
                       <Users className="w-3.5 h-3.5" strokeWidth={1.75} style={{ color: '#2563eb' }} />
                       <span className="font-mono text-[11px] font-semibold" style={{ color: '#1e3a8a' }}>
@@ -217,8 +264,11 @@ export default function MapaChamadosModal({ tickets = [], teams = [], onClose })
                       </span>
                     </div>
                     <div className="font-semibold text-neutral-900">{eq.name}</div>
+                    {/* equipe pode não ter carro (atendimento interno) */}
                     <div className="text-neutral-600 mt-0.5">
-                      <span className="font-mono">{eq.vehicle.plate}</span> · {eq.vehicle.model}
+                      {eq.vehicle
+                        ? <><span className="font-mono">{eq.vehicle.plate}</span> · {eq.vehicle.model}</>
+                        : <span className="italic">sem veículo</span>}
                     </div>
                     {eq.activeTicket && (
                       <div className="mt-2 pt-2 border-t border-neutral-200">
@@ -235,46 +285,87 @@ export default function MapaChamadosModal({ tickets = [], teams = [], onClose })
             ))}
           </MapContainer>
 
-          {/* Legenda flutuante */}
-          <div
-            className="absolute bottom-4 left-4 rounded-md px-3 py-2.5"
+          {/* Voltar a ver tudo: no celular é fácil se perder arrastando */}
+          <button
+            onClick={() => reenquadrar?.()}
+            className="absolute top-3 right-3 w-11 h-11 rounded-lg flex items-center justify-center"
             style={{
               backgroundColor: C.surface,
-              border: `1px solid ${C.divider}`,
-              boxShadow: '0 4px 12px 1px #2563eb',
+              border: `1px solid ${C.border}`,
+              boxShadow: '0 2px 8px rgba(20,22,36,0.15)',
+              color: C.text2,
+              zIndex: 500,
+            }}
+            aria-label="Enquadrar todos os pontos"
+            title="Enquadrar todos os pontos"
+          >
+            <Crosshair className="w-5 h-5" strokeWidth={1.75} />
+          </button>
+
+          {/* Legenda: recolhida por padrão no celular, onde ela comeria um
+              terço do mapa. No desktop nasce aberta. */}
+          <div
+            className="absolute bottom-3 left-3 right-3 sm:right-auto sm:w-auto rounded-lg overflow-hidden"
+            style={{
+              backgroundColor: C.surface,
+              border: `1px solid ${C.border}`,
+              boxShadow: '0 2px 12px rgba(20,22,36,0.18)',
               zIndex: 500,
             }}
           >
-            <div className="text-[10px] uppercase tracking-wider font-medium mb-1.5" style={{ color: C.text3 }}>
-              Legenda
-            </div>
-            <div className="flex flex-col gap-1 text-[11px]" style={{ color: C.text1 }}>
-              {Object.entries(PRIO_COR).map(([k, cor]) => (
-                <div key={k} className="flex items-center gap-2">
+            <button
+              onClick={() => setLegendaAberta((v) => !v)}
+              className="w-full min-h-[40px] px-3 flex items-center gap-2 text-[11px] font-medium"
+              style={{ color: C.text2 }}
+            >
+              <span className="uppercase tracking-wider">Legenda</span>
+              <span className="flex items-center gap-1.5 ml-auto">
+                {/* resumo visível mesmo recolhida */}
+                {Object.entries(PRIO_COR).map(([k, cor]) => (
+                  contagem[k] > 0 && (
+                    <span key={k} className="inline-flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: cor }} />
+                      <span className="font-mono text-[10px]">{contagem[k]}</span>
+                    </span>
+                  )
+                ))}
+                {legendaAberta
+                  ? <ChevronDown className="w-4 h-4" strokeWidth={1.75} />
+                  : <ChevronUp className="w-4 h-4" strokeWidth={1.75} />}
+              </span>
+            </button>
+
+            {legendaAberta && (
+              <div
+                className="px-3 pb-2.5 pt-0.5 flex flex-col gap-1.5 text-[11px] sm:min-w-[180px]"
+                style={{ color: C.text1, borderTop: `1px solid ${C.divider}` }}
+              >
+                {Object.entries(PRIO_COR).map(([k, cor]) => (
+                  <div key={k} className="flex items-center gap-2">
+                    <span
+                      className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: cor }}
+                    />
+                    <span>{PRIORITY_META[k]?.label || k}</span>
+                    <span className="ml-auto font-mono text-[10px]" style={{ color: C.text3 }}>
+                      {contagem[k]}
+                    </span>
+                  </div>
+                ))}
+                <div className="mt-0.5 pt-1.5 border-t flex items-center gap-2" style={{ borderColor: C.divider }}>
                   <span
-                    className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: cor }}
-                  />
-                  <span className="capitalize">{PRIORITY_META[k]?.label || k}</span>
+                    className="w-3.5 h-3.5 rounded-full flex-shrink-0 inline-flex items-center justify-center"
+                    style={{ backgroundColor: '#2563eb' }}
+                  >
+                    <Users className="w-2 h-2 text-white" strokeWidth={2.5} />
+                  </span>
+                  <span>Equipe em campo</span>
                   <span className="ml-auto font-mono text-[10px]" style={{ color: C.text3 }}>
-                    {contagem[k]}
+                    {equipesEmCampo.length}
                   </span>
                 </div>
-              ))}
-              
-              <div className="mt-1.5 pt-1.5 border-t flex items-center gap-2" style={{ borderColor: C.divider }}>
-                <span
-                  className="w-3.5 h-3.5 rounded-full flex-shrink-0 inline-flex items-center justify-center"
-                  style={{ backgroundColor: '#2563eb' }}
-                >
-                  <Users className="w-2 h-2 text-white" strokeWidth={2.5} />
-                </span>
-                <span>Equipe em campo</span>
-                <span className="ml-auto font-mono text-[10px]" style={{ color: C.text3 }}>
-                  {equipesEmCampo.length}
-                </span>
               </div>
-            </div>
+            )}
           </div>
         </div>
       </div>

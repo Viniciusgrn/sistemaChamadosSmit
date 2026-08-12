@@ -1,7 +1,15 @@
 import { useEffect, useState } from "react"
-import { X, Users, Check, Plus, Trash2, Briefcase } from 'lucide-react'
+import { X, Users, Check, Plus, Trash2, Briefcase, PlayCircle, StopCircle, Lock } from 'lucide-react'
 import { Avatar, PriorityCell, StatusChip } from "./shared"
-import { PRIORITY_META, EMPRESAS_DISPONIVEIS, TERCEIRIZADAS_META, TERC_STATUS_META } from "../../pages/chamados/data"
+import {
+  PRIORITY_META, TERCEIRIZADAS_META, TERC_STATUS_META, TERC_STATUS,
+  STATUS_META, STATUS_EDITAVEIS,
+} from "../../pages/chamados/data"
+import {
+  useEmpresas, useDelegarChamado, useEditarDelegacao, useRemoverDelegacao,
+} from "../../hooks/useTerceirizadas"
+import { useAtenderChamado } from "../../hooks/useChamados"
+import { useAuth } from "../../contexts/AuthContext"
 
 const C = {
   surface:  '#ffffff',
@@ -16,7 +24,7 @@ const C = {
   accentInk:'#2d2783',
 }
 
-export default function TicketModal({ ticket, teams, onClose, onUpdate, onAssign }) {
+export default function TicketModal({ ticket, teams, onClose, onUpdate, onAssign, onAtender, onEncerrarAtendimento }) {
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', onKey)
@@ -27,60 +35,80 @@ export default function TicketModal({ ticket, teams, onClose, onUpdate, onAssign
   const [novaEmpresa, setNovaEmpresa] = useState('')
   const [novoProtocolo, setNovoProtocolo] = useState('')
 
+  const { user } = useAuth()
+  const atender = useAtenderChamado()
+
+  // Empresas reais + mutações de delegação (ChamadoTerceirizada)
+  const { data: empresas = [] } = useEmpresas()
+  const delegar = useDelegarChamado()
+  const editarDelegacao = useEditarDelegacao()
+  const removerDelegacao = useRemoverDelegacao()
+
   if (!ticket) return null
 
   const team = teams.find((t) => t.id === ticket.team)
   const terceirizadas = ticket.terceirizadas || []
+  const encerrado = ['resolvido', 'cancelado'].includes(ticket.statusReal)
 
-  // Empresas que ainda não estão vinculadas
-  const empresasLivres = EMPRESAS_DISPONIVEIS.filter(
-    (e) => !terceirizadas.some((x) => x.empresa === e)
+  // quem está atendendo este chamado agora
+  const equipeNoChamado = ticket.equipe
+  const tecnicosNoChamado = equipeNoChamado?.members || []
+  const euAtendo = !!(
+    user?.tecnico_id &&
+    ticket.equipeTecnicoIds?.includes(user.tecnico_id)
+  )
+  const atendidoPorOutro = !!equipeNoChamado && !euAtendo
+  const quemAtende = tecnicosNoChamado.map((m) => m.name.split(' ')[0]).join(' + ')
+
+  // Empresas que ainda não estão vinculadas a este chamado
+  const empresasLivres = empresas.filter(
+    (e) => !terceirizadas.some((x) => x.empresa === e.nome)
   )
   const podeAdicionar = novaEmpresa && novoProtocolo.trim()
 
   const adicionarTerceirizada = () => {
     if (!podeAdicionar) return
-    const lista = [...terceirizadas, {
-      empresa: novaEmpresa,
-      protocolo: novoProtocolo.trim(),
-      status_chamado: 'aberto',   // recém-criada
-      aberto_em: 'agora',
-      finalizado_em: null,
-      descricao: '',
-    }]
-    // Regra: chamado com terceirizada vinculada fica em_andamento (a menos
-    // que já esteja resolvido)
-    const novoStatus = ticket.status === 'resolvido' ? ticket.status : 'em_andamento'
-    onUpdate({ ...ticket, terceirizadas: lista, status: novoStatus })
-    setNovaEmpresa('')
-    setNovoProtocolo('')
-  }
+    const empresa = empresas.find((e) => String(e.id) === String(novaEmpresa))
+    if (!empresa) return
 
-  const removerTerceirizada = (empresa) => {
-    const lista = terceirizadas.filter((x) => x.empresa !== empresa)
-    onUpdate({ ...ticket, terceirizadas: lista })
-  }
-
-  const atualizarProtocolo = (empresa, protocolo) => {
-    const lista = terceirizadas.map((x) =>
-      x.empresa === empresa ? { ...x, protocolo } : x
-    )
-    onUpdate({ ...ticket, terceirizadas: lista })
-  }
-
-  const ciclarStatusTerc = (empresa) => {
-    // Click na bolinha alterna apenas aberto ↔ finalizado.
-    // Outros estados (em_andamento, nao_resolvido) só vêm via API/dados externos.
-    const lista = terceirizadas.map((x) => {
-      if (x.empresa !== empresa) return x
-      const finalizando = x.status_chamado !== 'finalizado'
-      return {
-        ...x,
-        status_chamado: finalizando ? 'finalizado' : 'aberto',
-        finalizado_em: finalizando ? (x.finalizado_em || 'agora') : null,
+    delegar.mutate(
+      {
+        chamado: ticket.id,
+        empresa_responsavel: empresa.id,
+        protocolo: novoProtocolo.trim(),
+        titulo: ticket.title,
+        descricao: ticket.descricao || ticket.title,
+      },
+      {
+        onSuccess: () => {
+          setNovaEmpresa('')
+          setNovoProtocolo('')
+          // quem resolve agora é a empresa (a menos que já esteja encerrado)
+          if (!['resolvido', 'cancelado'].includes(ticket.statusReal)) {
+            onUpdate(ticket, { status: 'em_terceirizada' })
+          }
+        },
       }
+    )
+  }
+
+  const removerTerceirizada = (delegacaoId) => {
+    removerDelegacao.mutate(delegacaoId)
+  }
+
+  const atualizarProtocolo = (delegacaoId, protocolo) => {
+    editarDelegacao.mutate({ id: delegacaoId, protocolo })
+  }
+
+  const ciclarStatusTerc = (delegacao) => {
+    // Click na bolinha alterna Aberto <-> Finalizado.
+    // Em andamento / Não resolvido são definidos na tela de Terceirizadas.
+    const finalizando = delegacao.status !== TERC_STATUS.FINALIZADO
+    editarDelegacao.mutate({
+      id: delegacao.id,
+      status_chamado: finalizando ? TERC_STATUS.FINALIZADO : TERC_STATUS.ABERTO,
+      finalizado_em: finalizando ? new Date().toISOString() : null,
     })
-    onUpdate({ ...ticket, terceirizadas: lista })
   }
 
   return (
@@ -91,7 +119,7 @@ export default function TicketModal({ ticket, teams, onClose, onUpdate, onAssign
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-2xl rounded-lg overflow-hidden flex flex-col max-h-[90vh]"
+        className="w-full max-w-3xl rounded-lg overflow-hidden flex flex-col max-h-[90vh]"
         style={{
           backgroundColor: C.surface,
           border: `1px solid ${C.border2}`,
@@ -132,18 +160,11 @@ export default function TicketModal({ ticket, teams, onClose, onUpdate, onAssign
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto p-5">
-          {/* Grid de info */}
-          <div className="grid grid-cols-2 gap-4 mb-5">
+          {/* Info do chamado. Status e prioridade não entram aqui: aparecem
+              logo abaixo, já editáveis - repetir só ocuparia altura. */}
+          <div className="grid grid-cols-2 gap-x-4 gap-y-3 mb-4">
             <InfoItem label="Setor solicitante">
               <span style={{ color: C.text1 }}>{ticket.client}</span>
-            </InfoItem>
-
-            <InfoItem label="Status">
-              <StatusChip s={ticket.status} />
-            </InfoItem>
-
-            <InfoItem label="Endereço" colSpan>
-              <span style={{ color: C.text1 }}>{ticket.address}</span>
             </InfoItem>
 
             <InfoItem label="Equipe atribuída">
@@ -158,10 +179,8 @@ export default function TicketModal({ ticket, teams, onClose, onUpdate, onAssign
               )}
             </InfoItem>
 
-            <InfoItem label="Aberto em">
-              <span className="font-mono text-[13px]" style={{ color: C.text1 }}>
-                {ticket.date} · {ticket.openedAt}
-              </span>
+            <InfoItem label="Endereço" colSpan>
+              <span style={{ color: C.text1 }}>{ticket.address}</span>
             </InfoItem>
           </div>
 
@@ -190,11 +209,11 @@ export default function TicketModal({ ticket, teams, onClose, onUpdate, onAssign
               <ul className="list-none p-0 m-0 space-y-1.5 mb-2">
                 {terceirizadas.map((x) => {
                   const meta = TERCEIRIZADAS_META[x.empresa] || {}
-                  const statusTerc = TERC_STATUS_META[x.status_chamado] || {}
-                  const concluido = x.status_chamado === 'finalizado' || x.status_chamado === 'nao_resolvido'
+                  const statusTerc = TERC_STATUS_META[x.status] || {}
+                  const concluido = x.status === TERC_STATUS.FINALIZADO || x.status === TERC_STATUS.NAO_RESOLVIDO
                   return (
                     <li
-                      key={x.empresa}
+                      key={x.id}
                       className="flex items-center gap-2 px-2.5 py-1.5 rounded-md"
                       style={{
                         backgroundColor: meta.bg || C.surface2,
@@ -204,8 +223,8 @@ export default function TicketModal({ ticket, teams, onClose, onUpdate, onAssign
                       {/* Bolinha de status do ChamadoTerceirizada - click cicla pelos estados */}
                       <button
                         type="button"
-                        onClick={() => ciclarStatusTerc(x.empresa)}
-                        title={`${statusTerc.label} · click para ${x.status_chamado === 'finalizado' ? 'reabrir' : 'finalizar'}`}
+                        onClick={() => ciclarStatusTerc(x)}
+                        title={`${statusTerc.label} · click para ${x.status === TERC_STATUS.FINALIZADO ? 'reabrir' : 'finalizar'}`}
                         className="w-3.5 h-3.5 rounded-full flex-shrink-0 transition-transform hover:scale-110"
                         style={{
                           backgroundColor: statusTerc.dot,
@@ -223,8 +242,11 @@ export default function TicketModal({ ticket, teams, onClose, onUpdate, onAssign
                       </span>
                       <input
                         type="text"
-                        value={x.protocolo}
-                        onChange={(e) => atualizarProtocolo(x.empresa, e.target.value)}
+                        defaultValue={x.protocolo}
+                        onBlur={(e) => {
+                          const v = e.target.value.trim()
+                          if (v && v !== x.protocolo) atualizarProtocolo(x.id, v)
+                        }}
                         placeholder="Protocolo"
                         className="flex-1 px-2 py-1 text-[12px] font-mono rounded focus:outline-none"
                         style={{
@@ -247,7 +269,7 @@ export default function TicketModal({ ticket, teams, onClose, onUpdate, onAssign
                       </span>
                       <button
                         type="button"
-                        onClick={() => removerTerceirizada(x.empresa)}
+                        onClick={() => removerTerceirizada(x.id)}
                         className="w-7 h-7 rounded flex items-center justify-center transition-colors flex-shrink-0"
                         style={{ color: C.text3 }}
                         onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#fee2e2'; e.currentTarget.style.color = '#dc2626' }}
@@ -278,7 +300,7 @@ export default function TicketModal({ ticket, teams, onClose, onUpdate, onAssign
                 >
                   <option value="">Empresa…</option>
                   {empresasLivres.map((e) => (
-                    <option key={e} value={e}>{e}</option>
+                    <option key={e.id} value={e.id}>{e.nome}</option>
                   ))}
                 </select>
                 <input
@@ -319,8 +341,13 @@ export default function TicketModal({ ticket, teams, onClose, onUpdate, onAssign
               </div>
             )}
           </div>
+        </div>
 
-          {/* Mudar prioridade */}
+        {/* Prioridade e status lado a lado: são as duas ações rápidas da DIT */}
+        <div
+          className="grid grid-cols-2 gap-4 px-5 py-4"
+          style={{ borderTop: `1px solid ${C.border}` }}
+        >
           <div>
             <div
               className="text-[10px] uppercase tracking-wider font-medium mb-2"
@@ -334,7 +361,7 @@ export default function TicketModal({ ticket, teams, onClose, onUpdate, onAssign
                 return (
                   <button
                     key={p}
-                    onClick={() => onUpdate({ ...ticket, priority: p })}
+                    onClick={() => onUpdate(ticket, { priority: p })}
                     className="px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors"
                     style={
                       ativo
@@ -343,6 +370,36 @@ export default function TicketModal({ ticket, teams, onClose, onUpdate, onAssign
                     }
                   >
                     {PRIORITY_META[p].label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Status (só a DIT altera) */}
+          <div>
+            <div
+              className="text-[10px] uppercase tracking-wider font-medium mb-2"
+              style={{ color: C.text3 }}
+            >
+              Mudar status
+            </div>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {STATUS_EDITAVEIS.map((s) => {
+                const meta = STATUS_META[s]
+                const ativo = ticket.statusReal === s
+                return (
+                  <button
+                    key={s}
+                    onClick={() => onUpdate(ticket, { status: s })}
+                    className="px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors"
+                    style={
+                      ativo
+                        ? { backgroundColor: meta.bg, color: meta.fg, border: `1px solid ${meta.dot}` }
+                        : { backgroundColor: C.surface2, color: C.text2, border: `1px solid ${C.border}` }
+                    }
+                  >
+                    {meta.label}
                   </button>
                 )
               })}
@@ -364,6 +421,43 @@ export default function TicketModal({ ticket, teams, onClose, onUpdate, onAssign
           >
             Fechar
           </button>
+          {/* Um chamado é atendido por uma equipe de cada vez. O botão muda
+              conforme quem está nele: eu, outra pessoa, ou ninguém. */}
+          {user?.eh_tecnico && !encerrado && (
+            euAtendo ? (
+              <button
+                onClick={onEncerrarAtendimento}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium transition-colors"
+                style={{ backgroundColor: '#0284c7', color: '#fff' }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#0369a1')}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#0284c7')}
+              >
+                <StopCircle className="w-3.5 h-3.5" strokeWidth={1.75} />
+                Encerrar meu atendimento
+              </button>
+            ) : atendidoPorOutro ? (
+              <span
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium"
+                style={{ backgroundColor: C.surface2, color: C.text3, border: `1px solid ${C.border}`, cursor: 'not-allowed' }}
+                title={`Em atendimento por ${quemAtende}`}
+              >
+                <Lock className="w-3.5 h-3.5" strokeWidth={1.75} />
+                Em atendimento
+              </span>
+            ) : (
+              <button
+                onClick={onAtender}
+                disabled={atender.isPending}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium transition-colors"
+                style={{ backgroundColor: '#0284c7', color: '#fff' }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#0369a1')}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#0284c7')}
+              >
+                <PlayCircle className="w-3.5 h-3.5" strokeWidth={1.75} />
+                {atender.isPending ? 'Assumindo…' : 'Ir para o chamado'}
+              </button>
+            )
+          )}
           <button
             onClick={() => onAssign(ticket)}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium transition-colors"
@@ -375,7 +469,7 @@ export default function TicketModal({ ticket, teams, onClose, onUpdate, onAssign
             {team ? 'Reatribuir equipe' : 'Atribuir equipe'}
           </button>
           <button
-            onClick={() => onUpdate({ ...ticket, status: 'resolvido' })}
+            onClick={() => onUpdate(ticket, { status: 'resolvido' })}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium transition-colors"
             style={{ backgroundColor: C.accent, color: '#fff' }}
             onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = C.accentInk)}

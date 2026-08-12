@@ -30,3 +30,31 @@ export function useExcluirEmpresa() {
   const invalidar = useInvalidarEmpresas()
   return useMutation({ mutationFn: (id) => terceirizadasApi.excluir(id), onSuccess: invalidar })
 }
+
+// ===== Delegações (ChamadoTerceirizada) =====
+// Mexem no chamado interno também, então invalidam as duas listas.
+function useInvalidarDelegacoes() {
+  const qc = useQueryClient()
+  return () => {
+    qc.invalidateQueries({ queryKey: ['empresas-terceirizadas'] })
+    qc.invalidateQueries({ queryKey: ['chamados'] })
+  }
+}
+
+export function useDelegarChamado() {
+  const invalidar = useInvalidarDelegacoes()
+  return useMutation({ mutationFn: (body) => terceirizadasApi.criarChamado(body), onSuccess: invalidar })
+}
+
+export function useEditarDelegacao() {
+  const invalidar = useInvalidarDelegacoes()
+  return useMutation({
+    mutationFn: ({ id, ...body }) => terceirizadasApi.editarChamado(id, body),
+    onSuccess: invalidar,
+  })
+}
+
+export function useRemoverDelegacao() {
+  const invalidar = useInvalidarDelegacoes()
+  return useMutation({ mutationFn: (id) => terceirizadasApi.excluirChamado(id), onSuccess: invalidar })
+}

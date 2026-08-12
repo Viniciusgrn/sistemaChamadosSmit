@@ -5,11 +5,19 @@ export const STATUS_META = {
   em_manutencao:         { label: "Em manutenção",         fg: "#854d0e", bg: "#fef7d6", dot: "#eab308" },
   agendado:              { label: "Agendado",              fg: "#3730a3", bg: "#eef0ff", dot: "#6366f1" },
   em_andamento:          { label: "Em andamento",          fg: "#0c4a6e", bg: "#e0f2fe", dot: "#0284c7" },
-  enviado_terceirizada:  { label: "Enviado p/ terc.",       fg: "#475569", bg: "#f1f5f9", dot: "#64748b" },
+  // `curto` é o que cabe no chip da tabela; `label` é o texto do select/toast
+  em_terceirizada:       { label: "Encaminhado p/ terceirizada", curto: "Terceirizada", fg: "#475569", bg: "#f1f5f9", dot: "#64748b" },
   resolvido:             { label: "Resolvido",             fg: "#14532d", bg: "#dcfce7", dot: "#16a34a" },
+  cancelado:             { label: "Cancelado",             fg: "#4b5563", bg: "#f1f1ef", dot: "#9ca3af" },
 };
 
-// Cores por terceirizada - quando status === 'enviado_terceirizada' o chip
+// Status que a DIT pode escolher no chamado
+export const STATUS_EDITAVEIS = [
+  'aberto', 'em_andamento', 'agendado', 'em_manutencao', 'em_terceirizada',
+  'resolvido', 'cancelado',
+];
+
+// Cores por terceirizada - quando status === 'em_terceirizada' o chip
 // mostra o nome da empresa com a cor dela em vez do label genérico.
 export const TERCEIRIZADAS_META = {
   Vivo:    { fg: "#7c2d12", bg: "#fef3c7", dot: "#ca8a04" },
@@ -80,7 +88,7 @@ export const SEED_TICKETS = [
   { code: "2839", title: "Instalar PC",           client: "Secretaria de Obras - Manutenção Predial",    address: "R. 5, 845 - Centro",          priority: "media",   status: "em_andamento", openedAt: "07:40", team: null,    date: "Hoje", latitude: -22.9510, longitude: -46.5430 },
   { code: "2836", title: "Câmera offline",     client: "Secretaria de Segurança - Monitoramento",     address: "Av. 3, 121 - Centro",priority: "baixa",   status: "aberto",       openedAt: "07:12", team: null,    date: "Hoje", latitude: -22.9544, longitude: -46.5402 },
 
-  // Chamados delegados pra terceirizadas (status === enviado_terceirizada)
+  // Chamados delegados pra terceirizadas
   // terceirizadas é M:N - cada empresa carrega seu próprio protocolo, status e datas
   // (espelha o model ChamadoTerceirizada do back)
   {
@@ -174,9 +182,12 @@ export function getSetor(secretaria, divisao) {
 }
 
 // Status do ChamadoTerceirizada (mirror do back) - perspectiva da terceirizada
+// Indexado pelo status_chamado (int) do ChamadoTerceirizada no back
 export const TERC_STATUS_META = {
-  aberto:        { label: "Aberto",         fg: "#9a3412", bg: "#fff1e6", dot: "#f97316" },
-  em_andamento:  { label: "Em andamento",   fg: "#0c4a6e", bg: "#e0f2fe", dot: "#0284c7" },
-  finalizado:    { label: "Finalizado",     fg: "#14532d", bg: "#dcfce7", dot: "#16a34a" },
-  nao_resolvido: { label: "Não resolvido",  fg: "#7f1d1d", bg: "#fee2e2", dot: "#dc2626" },
+  0: { label: "Aberto",         fg: "#9a3412", bg: "#fff1e6", dot: "#f97316" },
+  1: { label: "Em andamento",   fg: "#0c4a6e", bg: "#e0f2fe", dot: "#0284c7" },
+  2: { label: "Finalizado",     fg: "#14532d", bg: "#dcfce7", dot: "#16a34a" },
+  3: { label: "Não resolvido",  fg: "#7f1d1d", bg: "#fee2e2", dot: "#dc2626" },
 };
+
+export const TERC_STATUS = { ABERTO: 0, EM_ANDAMENTO: 1, FINALIZADO: 2, NAO_RESOLVIDO: 3 };

@@ -5,6 +5,16 @@ export const localidadesApi = {
   // ----- leitura -----
   secretarias: (params) => apiFetch('/localidades/secretarias/', { params }),
   divisoes:    (params) => apiFetch('/localidades/divisoes/', { params }),
+
+  // CRUD de secretaria
+  criarSecretaria:   (body)     => apiFetch('/localidades/secretarias/', { method: 'POST', body }),
+  editarSecretaria:  (id, body) => apiFetch(`/localidades/secretarias/${id}/`, { method: 'PATCH', body }),
+  excluirSecretaria: (id)       => apiFetch(`/localidades/secretarias/${id}/`, { method: 'DELETE' }),
+
+  // CRUD de divisão
+  criarDivisao:   (body)     => apiFetch('/localidades/divisoes/', { method: 'POST', body }),
+  editarDivisao:  (id, body) => apiFetch(`/localidades/divisoes/${id}/`, { method: 'PATCH', body }),
+  excluirDivisao: (id)       => apiFetch(`/localidades/divisoes/${id}/`, { method: 'DELETE' }),
   bairros:     (params) => apiFetch('/localidades/bairros/', { params }),
   enderecos:   (params) => apiFetch('/localidades/enderecos/', { params }),
   unidades:    (params) => apiFetch('/localidades/unidades/', { params }),

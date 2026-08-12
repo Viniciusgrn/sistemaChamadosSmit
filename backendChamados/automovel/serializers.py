@@ -49,7 +49,7 @@ class AutomovelSerializer(serializers.ModelSerializer):
         equipe = (
             Equipe.objects
             .filter(automovel_utilizado=obj, encerrada_em__isnull=True)
-            .prefetch_related('tecnicos__usuario')
+            .prefetch_related('participacoes__tecnico__usuario')
             .select_related('chamado_atual')
             .first()
         )
@@ -57,7 +57,7 @@ class AutomovelSerializer(serializers.ModelSerializer):
             return None
 
         integrantes = []
-        for t in equipe.tecnicos.all():
+        for t in equipe.tecnicos_ativos.select_related('usuario'):
             nome = getattr(t.usuario, 'nome_completo', '') or getattr(t.usuario, 'username', '')
             integrantes.append(nome.split(' ')[0] if nome else 'Técnico')
 

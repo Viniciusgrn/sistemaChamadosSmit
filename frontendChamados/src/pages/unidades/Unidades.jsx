@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
-import { Search, Plus, Map, Building2, Loader2, AlertCircle } from 'lucide-react'
+import { Search, Plus, Map, Building2, Loader2, AlertCircle, List } from 'lucide-react'
+import { useEhDesktop } from '../../hooks/useMediaQuery'
 
 import MapaEnderecos from './MapaEnderecos'
 import ListaEnderecos from './ListaEnderecos'
@@ -37,7 +38,11 @@ export default function Unidades() {
     return m
   }, [predios])
 
+  const ehDesktop = useEhDesktop()
   const [aba, setAba] = useState('mapa')
+  // No celular mapa e lista não cabem juntos (a lista sozinha tem 360px):
+  // alterna entre os dois. No desktop os dois aparecem lado a lado.
+  const [vistaMobile, setVistaMobile] = useState('mapa')
   const [busca, setBusca] = useState('')
   const [filtroRural, setFiltroRural] = useState('todos')
   const [filtroSecretaria, setFiltroSecretaria] = useState(null)
@@ -71,12 +76,12 @@ export default function Unidades() {
   return (
     <div className="h-full w-full flex flex-col" style={{ backgroundColor: C.bg }}>
       <header
-        className="flex-shrink-0 px-6 pt-4"
+        className="flex-shrink-0 px-4 sm:px-6 pt-3 sm:pt-4"
         style={{ backgroundColor: C.surface, borderBottom: `1px solid ${C.border}` }}
       >
-        <div className="flex items-center justify-between gap-4 mb-3">
-          <div>
-            <h1 className="text-xl font-semibold tracking-tight m-0" style={{ color: C.text1 }}>
+        <div className="flex items-start justify-between gap-3 mb-3">
+          <div className="min-w-0">
+            <h1 className="text-[17px] sm:text-xl font-semibold tracking-tight m-0" style={{ color: C.text1 }}>
               Localidades
             </h1>
             <div className="text-[12px] mt-0.5" style={{ color: C.text2 }}>
@@ -90,13 +95,12 @@ export default function Unidades() {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setEditandoEndereco(null)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium transition-colors"
+                className="flex items-center justify-center gap-1.5 w-11 h-11 sm:w-auto sm:h-auto sm:px-3 sm:py-1.5 rounded-md text-[12px] font-medium transition-colors flex-shrink-0"
                 style={{ backgroundColor: C.accent, color: '#fff' }}
-                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = C.accentInk)}
-                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = C.accent)}
+                title="Novo endereço"
               >
-                <Plus className="w-3.5 h-3.5" strokeWidth={2} />
-                Novo endereço
+                <Plus className="w-4 h-4 sm:w-3.5 sm:h-3.5" strokeWidth={2} />
+                <span className="hidden sm:inline">Novo endereço</span>
               </button>
             </div>
           )}
@@ -114,7 +118,7 @@ export default function Unidades() {
                 value={busca}
                 onChange={(e) => setBusca(e.target.value)}
                 placeholder="Buscar por rua, bairro, unidade…"
-                className="w-full pl-8 pr-3 py-1.5 text-[12px] rounded-md focus:outline-none"
+                className="w-full pl-8 pr-3 min-h-[40px] sm:min-h-0 sm:py-1.5 text-[12px] rounded-md focus:outline-none"
                 style={{
                   backgroundColor: C.surface2,
                   border: `1px solid ${C.border}`,
@@ -138,7 +142,7 @@ export default function Unidades() {
             <select
               value={filtroSecretaria || ''}
               onChange={(e) => setFiltroSecretaria(e.target.value ? Number(e.target.value) : null)}
-              className="px-2.5 py-1.5 text-[12px] rounded-md focus:outline-none"
+              className="px-2.5 min-h-[40px] sm:min-h-0 sm:py-1.5 text-[12px] rounded-md focus:outline-none max-w-full"
               style={{
                 backgroundColor: C.surface2,
                 border: `1px solid ${C.border}`,
@@ -181,30 +185,59 @@ export default function Unidades() {
             }
           />
         ) : (
-          <div className="flex-1 flex overflow-hidden">
-            <div className="flex-1 min-w-0">
-              <MapaEnderecos
-                enderecos={enderecosFiltrados}
-                selecionado={selecionado}
-                onSelect={setSelecionado}
-                predioPorEndereco={predioPorEndereco}
-                onAbrirPlanta={(predioId) => setDrillDownId(predioId)}
-              />
-            </div>
+          <div className="flex-1 flex overflow-hidden relative">
+            {(ehDesktop || vistaMobile === 'mapa') && (
+              <div className="flex-1 min-w-0">
+                <MapaEnderecos
+                  enderecos={enderecosFiltrados}
+                  selecionado={selecionado}
+                  onSelect={(e) => {
+                    setSelecionado(e)
+                    // no celular, tocar num pino não deve jogar pra lista:
+                    // o balão já mostra o que interessa
+                  }}
+                  predioPorEndereco={predioPorEndereco}
+                  onAbrirPlanta={(predioId) => setDrillDownId(predioId)}
+                />
+              </div>
+            )}
 
-            <aside
-              className="w-[360px] flex-shrink-0 overflow-y-auto"
-              style={{ backgroundColor: C.surface, borderLeft: `1px solid ${C.border}` }}
-            >
-              <ListaEnderecos
-                enderecos={enderecosFiltrados}
-                selecionado={selecionado}
-                onSelect={setSelecionado}
-                predioPorEndereco={predioPorEndereco}
-                onAbrirPlanta={(predioId) => setDrillDownId(predioId)}
-                onEditar={setEditandoEndereco}
-              />
-            </aside>
+            {(ehDesktop || vistaMobile === 'lista') && (
+              <aside
+                className="w-full lg:w-[360px] flex-shrink-0 overflow-y-auto"
+                style={{ backgroundColor: C.surface, borderLeft: `1px solid ${C.border}` }}
+              >
+                <ListaEnderecos
+                  enderecos={enderecosFiltrados}
+                  selecionado={selecionado}
+                  onSelect={(e) => {
+                    setSelecionado(e)
+                    if (!ehDesktop) setVistaMobile('mapa')   // escolheu na lista: vai pro mapa
+                  }}
+                  predioPorEndereco={predioPorEndereco}
+                  onAbrirPlanta={(predioId) => setDrillDownId(predioId)}
+                  onEditar={setEditandoEndereco}
+                />
+              </aside>
+            )}
+
+            {/* Alternador flutuante — só no celular, onde os dois não cabem */}
+            {!ehDesktop && (
+              <button
+                onClick={() => setVistaMobile((v) => (v === 'mapa' ? 'lista' : 'mapa'))}
+                className="absolute bottom-4 left-1/2 -translate-x-1/2 inline-flex items-center gap-2 px-4 min-h-[44px] rounded-full text-[13px] font-medium"
+                style={{
+                  backgroundColor: C.text1,
+                  color: '#fff',
+                  boxShadow: '0 4px 16px rgba(20,22,36,0.28)',
+                  zIndex: 500,
+                }}
+              >
+                {vistaMobile === 'mapa'
+                  ? <><List className="w-4 h-4" strokeWidth={1.75} />Ver lista ({enderecosFiltrados.length})</>
+                  : <><Map className="w-4 h-4" strokeWidth={1.75} />Ver mapa</>}
+              </button>
+            )}
           </div>
         )
       ) : (

@@ -1,18 +1,18 @@
 import { useMemo, useState } from 'react'
-import { Plus, Users, History, UserCheck } from 'lucide-react'
+import { Plus, Users, History, UserCheck, Loader2, AlertCircle } from 'lucide-react'
 
 import LobbyCard from './LobbyCard'
 import EquipeAtivaCard from './EquipeAtivaCard'
 import EquipeHistoricoCard from './EquipeHistoricoCard'
+import FormarEquipeModal from './FormarEquipeModal'
+import { RESP_META } from './data'
+import { separaPorFase } from './adapters'
 import {
-  SEED_LOBBIES,
-  SEED_EQUIPES_ATIVAS,
-  SEED_HISTORICO_HOJE,
-  SEED_TECNICOS,
-  RESP_META,
-  getTecnicosLivres,
-  resolveTecnico,
-} from './data'
+  useEquipes, useEntrarEquipe, useSairEquipe, useDespacharEquipe, useEncerrarEquipe,
+  useEditarEquipe, useExcluirEquipe,
+} from '../../hooks/useEquipes'
+import { useTecnicos } from '../../hooks/useTecnicos'
+import { useAuth } from '../../contexts/AuthContext'
 
 const C = {
   bg:        '#f7f7f4',
@@ -28,22 +28,77 @@ const C = {
 }
 
 export default function Equipes() {
-  // TODO: trocar por useQuery quando wire na API
-  const [lobbies, setLobbies] = useState(SEED_LOBBIES)
-  const [ativas]              = useState(SEED_EQUIPES_ATIVAS)
-  const [historico]           = useState(SEED_HISTORICO_HOJE)
-  const [aba, setAba]         = useState('formacao') // 'formacao' | 'historico' | 'tecnicos'
+  const { user } = useAuth()
+  const { data: equipesApi = [], isLoading, isError, error } = useEquipes()
+  const { data: tecnicos = [] } = useTecnicos()
 
-  const livres = useMemo(() => getTecnicosLivres(), [])
+  const entrar = useEntrarEquipe()
+  const sair = useSairEquipe()
+  const despachar = useDespacharEquipe()
+  const encerrar = useEncerrarEquipe()
+  const editar = useEditarEquipe()
+  const remover = useExcluirEquipe()
 
-  // Stub das ações - TODOs até wire na API
-  const handleEntrar = (lobby) => {
-    // TODO: backend determina QUEM entra baseado no usuário logado
-    console.log('Entrar no lobby', lobby.id)
+  const [aba, setAba] = useState('formacao') // 'formacao' | 'historico' | 'tecnicos'
+  const [formando, setFormando] = useState(false)
+  const [erroAcao, setErroAcao] = useState('')
+
+  const { lobbies, ativas, historico } = useMemo(
+    () => separaPorFase(equipesApi),
+    [equipesApi]
+  )
+
+  // livres = disponíveis e sem equipe aberta
+  const todosLivres = useMemo(() => {
+    const ocupados = new Set(
+      [...lobbies, ...ativas].flatMap((e) => e.tecnicos_ids)
+    )
+    return tecnicos.filter((t) => t.disponivel && !ocupados.has(t.id))
+  }, [tecnicos, lobbies, ativas])
+
+  // Escalar terceiro é do despachante. Quem não coordena só se auto-atribui,
+  // então a lista de escolha mostra só ele — o backend recusa o resto de todo
+  // jeito (equipeTecnica/views._garante_pode_mexer_em).
+  const podeEscalarOutros = !!(user?.eh_despachante || user?.eh_chefe || user?.eh_secretario || user?.is_superuser)
+  const livres = useMemo(
+    () => (podeEscalarOutros ? todosLivres : todosLivres.filter((t) => t.id === user?.tecnico_id)),
+    [todosLivres, podeEscalarOutros, user]
+  )
+
+  // Técnico abre equipe só quando está livre; quem coordena monta lobby pros
+  // outros e por isso não entra na regra.
+  const minhaEquipe = useMemo(
+    () => [...lobbies, ...ativas].find((e) => e.tecnicos_ids?.includes(user?.tecnico_id)),
+    [lobbies, ativas, user]
+  )
+  const podeFormarEquipe = podeEscalarOutros || !minhaEquipe
+
+  const comErro = (fn) => (args) =>
+    fn.mutate(args, { onError: (e) => setErroAcao(e?.data?.detail || 'Não foi possível concluir a ação.') })
+
+  const handleEntrar = (equipe, tecnicoId) => {
+    setErroAcao('')
+    comErro(entrar)({ id: equipe.id, tecnicoId })
   }
-  const handleSairCampo = (lobby) => {
-    // TODO: POST /api/equipes/formacoes/ com tecnicos + veiculo + chamado
-    setLobbies((s) => s.filter((l) => l.id !== lobby.id))
+  const handleSair = (equipe, tecnicoId) => {
+    setErroAcao('')
+    comErro(sair)({ id: equipe.id, tecnicoId })
+  }
+  const handleSairCampo = (equipe, chamadoId) => {
+    setErroAcao('')
+    comErro(despachar)({ id: equipe.id, chamadoId: chamadoId ?? equipe.chamado?.id })
+  }
+  const handleEncerrar = (equipe, motivo) => {
+    setErroAcao('')
+    comErro(encerrar)({ id: equipe.id, motivo })
+  }
+  const handleTrocarCarro = (equipe, veiculoId) => {
+    setErroAcao('')
+    comErro(editar)({ id: equipe.id, automovel_utilizado: veiculoId })
+  }
+  const handleDesfazer = (equipe) => {
+    setErroAcao('')
+    comErro(remover)(equipe.id)
   }
 
   return (
@@ -59,16 +114,24 @@ export default function Equipes() {
               Equipes
             </h1>
             <div className="text-[12px] mt-0.5" style={{ color: C.text2 }}>
-              {lobbies.length} em formação · {ativas.length} em campo · {livres.length} técnico{livres.length !== 1 ? 's' : ''} livre{livres.length !== 1 ? 's' : ''}
+              {lobbies.length} em formação · {ativas.length} em campo · {todosLivres.length} técnico{todosLivres.length !== 1 ? 's' : ''} livre{todosLivres.length !== 1 ? 's' : ''}
             </div>
           </div>
 
+          {/* técnico já alocado não abre outra equipe — o backend recusa
+              (equipeTecnica/views.perform_create); aqui só evita o caminho */}
           <button
+            onClick={() => setFormando(true)}
+            disabled={!podeFormarEquipe}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium transition-colors"
-            style={{ backgroundColor: C.accent, color: '#fff' }}
-            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = C.accentInk)}
-            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = C.accent)}
-            title="Geralmente não usado pelo despachante - equipes se montam sozinhas"
+            style={{
+              backgroundColor: podeFormarEquipe ? C.accent : '#d4d3cf',
+              color: '#fff',
+              cursor: podeFormarEquipe ? 'pointer' : 'not-allowed',
+            }}
+            title={podeFormarEquipe
+              ? 'Abrir uma equipe'
+              : `Você já está na equipe ${minhaEquipe?.id ?? ''} — saia dela antes de abrir outra.`}
           >
             <Plus className="w-3.5 h-3.5" strokeWidth={2} />
             Formar equipe
@@ -101,24 +164,66 @@ export default function Equipes() {
       {/* Conteúdo */}
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-4xl mx-auto">
-          {aba === 'formacao' && (
-            <AbaFormacao
-              lobbies={lobbies}
-              ativas={ativas}
-              onEntrar={handleEntrar}
-              onSairCampo={handleSairCampo}
-            />
+          {erroAcao && (
+            <div
+              className="mb-4 flex items-center gap-2 px-4 py-2.5 rounded-md text-[12px]"
+              style={{ backgroundColor: '#fee2e2', color: '#7f1d1d' }}
+            >
+              <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" strokeWidth={1.75} />
+              {erroAcao}
+            </div>
           )}
-          {aba === 'historico' && <AbaHistorico historico={historico} />}
-          {aba === 'tecnicos'  && <AbaTecnicos tecnicos={SEED_TECNICOS} />}
+
+          {isLoading ? (
+            <Estado icon={Loader2} spin texto="Carregando equipes…" />
+          ) : isError ? (
+            <Estado
+              icon={AlertCircle}
+              texto={
+                error?.status === 401 || error?.status === 403
+                  ? 'Sem permissão. Faça login no /admin (mesmo navegador) e recarregue.'
+                  : 'Erro ao carregar equipes.'
+              }
+            />
+          ) : (
+            <>
+              {aba === 'formacao' && (
+                <AbaFormacao
+                  lobbies={lobbies}
+                  ativas={ativas}
+                  livres={livres}
+                  onEntrar={handleEntrar}
+                  onSair={handleSair}
+                  onSairCampo={handleSairCampo}
+                  onEncerrar={handleEncerrar}
+                  onTrocarCarro={handleTrocarCarro}
+                  onDesfazer={handleDesfazer}
+                />
+              )}
+              {aba === 'historico' && <AbaHistorico historico={historico} />}
+              {/* a aba de consulta mostra todos os livres, não só ele */}
+              {aba === 'tecnicos'  && <AbaTecnicos tecnicos={todosLivres} />}
+            </>
+          )}
         </div>
       </div>
+
+      {formando && <FormarEquipeModal onClose={() => setFormando(false)} />}
+    </div>
+  )
+}
+
+function Estado({ icon: Icon, texto, spin }) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-3 py-16" style={{ color: C.text3 }}>
+      <Icon className={`w-6 h-6 ${spin ? 'animate-spin' : ''}`} strokeWidth={1.75} />
+      <span className="text-[13px] max-w-xs text-center">{texto}</span>
     </div>
   )
 }
 
 // ---------- Aba: Em formação (lobbies + equipes ativas) ----------
-function AbaFormacao({ lobbies, ativas, onEntrar, onSairCampo }) {
+function AbaFormacao({ lobbies, ativas, livres, onEntrar, onSair, onSairCampo, onEncerrar, onTrocarCarro, onDesfazer }) {
   return (
     <div className="space-y-8">
       <Section
@@ -131,18 +236,12 @@ function AbaFormacao({ lobbies, ativas, onEntrar, onSairCampo }) {
             <LobbyCard
               key={l.id}
               lobby={l}
+              livres={livres}
               onEntrar={onEntrar}
+              onSair={onSair}
               onSairCampo={onSairCampo}
-            />
-          ))}
-        </ul>
-        <ul className="list-none p-0 m-0 space-y-4">
-          {lobbies.map((l) => (
-            <LobbyCard
-              key={l.id}
-              lobby={l}
-              onEntrar={onEntrar}
-              onSairCampo={onSairCampo}
+              onTrocarCarro={onTrocarCarro}
+              onDesfazer={onDesfazer}
             />
           ))}
         </ul>
@@ -155,7 +254,7 @@ function AbaFormacao({ lobbies, ativas, onEntrar, onSairCampo }) {
       >
         <ul className="list-none p-0 m-0 space-y-3">
           {ativas.map((e) => (
-            <EquipeAtivaCard key={e.id} equipe={e} />
+            <EquipeAtivaCard key={e.id} equipe={e} onEncerrar={onEncerrar} />
           ))}
         </ul>
       </Section>

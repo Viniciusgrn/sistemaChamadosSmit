@@ -1,5 +1,6 @@
 from rest_framework import viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
 from core.mixins import AuditMixin
@@ -47,18 +48,17 @@ class EnderecoViewSet(AuditMixin, viewsets.ModelViewSet):
 
 
 class SecretariaViewSet(AuditMixin, viewsets.ModelViewSet):
-    queryset = Secretaria.objects.all().order_by('nome')
+    queryset = Secretaria.objects.select_related('secretario_responsavel').order_by('sigla')
     serializer_class = SecretariaSerializer
 
-class SecretariaEditView(AuditMixin, viewsets.ModelViewSet): #revisar essa classe
-    queryset = Secretaria.objects.all().order_by('nome')
-    serializer_class = SecretariaSerializer
-    def get_queryset(self):
-        qs = super().get_queryset()
-        bairro_id = self.request.query_params.get('bairro')
-        if bairro_id:
-            qs = qs.filter(bairro_id=bairro_id)
-        return qs
+    def perform_destroy(self, instance):
+        # Divisao aponta pra Secretaria com PROTECT: sem isso o erro viria como 500
+        if instance.divisoes.exists():
+            raise ValidationError({
+                'detail': f'Esta secretaria tem {instance.divisoes.count()} divisão(ões) '
+                          'vinculada(s). Remova ou realoque as divisões antes de excluí-la.'
+            })
+        instance.delete()
 
 class DivisaoViewSet(AuditMixin, viewsets.ModelViewSet):
     queryset = Divisao.objects.select_related('secretaria').all()
@@ -70,6 +70,15 @@ class DivisaoViewSet(AuditMixin, viewsets.ModelViewSet):
         if secretaria_id:
             qs = qs.filter(secretaria_id=secretaria_id)
         return qs
+
+    def perform_destroy(self, instance):
+        # Unidade aponta pra Divisao com PROTECT
+        if instance.unidades.exists():
+            raise ValidationError({
+                'detail': f'Esta divisão tem {instance.unidades.count()} unidade(s) '
+                          'vinculada(s). Realoque as unidades antes de excluí-la.'
+            })
+        instance.delete()
 
 
 class UnidadeViewSet(AuditMixin, viewsets.ModelViewSet):

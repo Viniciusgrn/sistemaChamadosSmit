@@ -52,7 +52,7 @@ export default function ManutencaoCard({ manutencao: m, onClick }) {
       }}
     >
       {/* Topo: equipamento + status + backup */}
-      <div className="px-5 py-4 flex items-start gap-3">
+      <div className="px-4 sm:px-5 py-4 flex items-start gap-3">
         <div
           className="flex-shrink-0 w-11 h-11 rounded-md flex items-center justify-center"
           style={{
@@ -94,7 +94,7 @@ export default function ManutencaoCard({ manutencao: m, onClick }) {
 
       {/* Diagnóstico */}
       <div
-        className="px-5 py-3 text-[12px] line-clamp-2"
+        className="px-4 sm:px-5 py-3 text-[12px] line-clamp-2"
         style={{ color: C.text1, borderTop: `1px solid ${C.divider}` }}
       >
         {m.diagnostico}
@@ -102,7 +102,7 @@ export default function ManutencaoCard({ manutencao: m, onClick }) {
 
       {/* Linha de meta */}
       <div
-        className="px-5 py-2.5 grid grid-cols-2 gap-3 text-[11px]"
+        className="px-4 sm:px-5 py-2.5 grid grid-cols-1 sm:grid-cols-2 gap-1.5 sm:gap-3 text-[11px]"
         style={{ backgroundColor: C.surface2, borderTop: `1px solid ${C.divider}`, color: C.text2 }}
       >
         <span className="flex items-center gap-1.5 min-w-0">
@@ -119,7 +119,7 @@ export default function ManutencaoCard({ manutencao: m, onClick }) {
 
       {/* Rodapé: técnicos + tempos */}
       <div
-        className="px-5 py-2.5 flex items-center justify-between gap-3"
+        className="px-4 sm:px-5 py-2.5 flex items-center justify-between gap-2 flex-wrap"
         style={{ borderTop: `1px solid ${C.divider}` }}
       >
         <div className="flex items-center gap-2 min-w-0">

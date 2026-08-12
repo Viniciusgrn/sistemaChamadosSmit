@@ -145,15 +145,21 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
+        # cargos supervisionados só leem — vale pra toda a API, não só pro menu
+        'core.permissions.AprendizSomenteLeitura',
     ],
 }
 
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = 'pt-br'
 
-TIME_ZONE = 'UTC'
+# Guardamos tudo em UTC no banco (USE_TZ), mas "hoje", "agora" e o que o admin
+# mostra passam a ser no horário de Brasília. Atenção: as tabelas de fuso do
+# MySQL não estão carregadas aqui, então lookups __date/__month sobre campos de
+# data NÃO funcionam (viram CONVERT_TZ e devolvem NULL) — use core.tempo.
+TIME_ZONE = 'America/Sao_Paulo'
 
 USE_I18N = True
 

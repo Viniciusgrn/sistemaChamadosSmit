@@ -36,8 +36,10 @@ export function montaSecretariasConsolidadas(secretarias, divisoes, unidades) {
       nome: s.nome,
       sigla: s.sigla,
       cor: s.cor,
-      // FK Usuario - ainda não populado, vem como id ou null. Sem nome por ora.
-      secretario: null,
+      secretario: s.secretario_nome || null,
+      // id cru, pro modal de edição pré-preencher a busca
+      secretario_responsavel: s.secretario_responsavel ?? null,
+      secretario_nome: s.secretario_nome || '',
       divisoes: divs,
       qtd_divisoes: divs.length,
       qtd_unidades: qtdUnidades,

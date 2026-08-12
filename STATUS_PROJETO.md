@@ -126,4 +126,7 @@ frontend React 19 + Vite + Tailwind (`frontendChamados/`), banco MySQL local
 - `Usuarios_AD_Completo.csv`, `usuarios_ad_tratado.csv`, `usuarios_ad_descartados.csv`
   e `ramais.txt` contêm **dados pessoais de servidores** - mantidos FORA do git
   (.gitignore). Os comandos de seed leem esses arquivos localmente.
-- `media/` (plantas) e banco também fora do git.
+- As imagens das plantas (`backendChamados/media/plantas/`) ESTÃO versionadas -
+  são necessárias pro `seed_planta_paco`. Uploads futuros de outras plantas
+  entram aí também; se o diretório crescer, avaliar ignorar.
+- O banco MySQL não vai pro git - recriar com `migrate` + comandos de seed.

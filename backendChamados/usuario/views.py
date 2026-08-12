@@ -1,4 +1,5 @@
 from django.contrib.auth import authenticate, login, logout, update_session_auth_hash
+from django.db.models import Q
 from django.utils import timezone
 from rest_framework.views import APIView
 from rest_framework.decorators import action
@@ -7,6 +8,7 @@ from rest_framework import status, permissions, viewsets, mixins
 from rest_framework.exceptions import PermissionDenied, ValidationError
 
 from core.mixins import AuditMixin
+from core import papeis
 from .models import Usuario, SolicitacaoDivisao
 from .serializers import UsuarioSerializer, SolicitacaoDivisaoSerializer
 
@@ -14,10 +16,9 @@ from .serializers import UsuarioSerializer, SolicitacaoDivisaoSerializer
 def payload_sessao(user):
     """Dados do usuário logado que o front precisa pra montar a UI."""
     divisao = user.divisao
-    eh_dit = bool(
-        user.is_superuser
-        or (divisao and (divisao.sigla or '').upper() == 'DIT')
-    )
+    eh_tecnico = papeis.eh_tecnico(user)
+    # técnico opera o sistema completo mesmo sem estar lotado na TI
+    eh_dit = papeis.opera_sistema(user)
     eh_secretario = user.secretarias_chefiadas.exists()
     eh_chefe = user.subordinados.exists()
     return {
@@ -27,8 +28,19 @@ def payload_sessao(user):
         'matricula': user.matricula,
         'email': user.email,
         'eh_dit': eh_dit,
+        'eh_tecnico': eh_tecnico,   # habilita o botão "Ir para o chamado"
+        # id do Tecnico (não do Usuario): o front compara com a equipe do
+        # chamado pra saber se quem está atendendo é ele mesmo
+        'tecnico_id': user.tecnico.id if eh_tecnico else None,
         'eh_secretario': eh_secretario,
         'eh_chefe': eh_chefe,
+        'eh_despachante': papeis.eh_despachante(user),
+        # 'gestao' | 'tecnico' | 'aprendiz' | 'solicitante' — decide qual
+        # versão do sistema o front monta (menu, rotas e layout)
+        'perfil': papeis.perfil_operacional(user),
+        'cargo': user.tecnico.get_cargo_display() if eh_tecnico else None,
+        # aprendiz acompanha a equipe, mas não assume chamado sozinho
+        'pode_atender': eh_tecnico and not papeis.eh_aprendiz(user),
         # chefes, secretários e DIT escolhem onde o chamado é aberto;
         # o resto abre sempre pro próprio setor
         'pode_escolher_unidade': eh_dit or eh_secretario or eh_chefe,
@@ -45,8 +57,25 @@ def payload_sessao(user):
 
 
 class UsuarioViewSet(AuditMixin, viewsets.ModelViewSet):
-    queryset = Usuario.objects.all()
+    queryset = Usuario.objects.select_related('divisao__secretaria').all()
     serializer_class = UsuarioSerializer
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        params = self.request.query_params
+        busca = params.get('busca')
+        if busca:
+            qs = qs.filter(
+                Q(nome_completo__icontains=busca)
+                | Q(username__icontains=busca)
+                | Q(matricula__icontains=busca)
+            )
+        if params.get('sem_tecnico'):
+            # só quem ainda não é técnico (pro cadastro não duplicar)
+            qs = qs.filter(tecnico__isnull=True)
+        if params.get('ativos'):
+            qs = qs.filter(is_active=True)
+        return qs.order_by('nome_completo')[:50]
 
 
 class LoginView(APIView):
@@ -82,10 +111,7 @@ class SessaoAtualView(APIView):
 
 
 def _eh_dit(user):
-    return bool(
-        user.is_superuser
-        or (user.divisao and (user.divisao.sigla or '').upper() == 'DIT')
-    )
+    return papeis.opera_sistema(user)
 
 
 def _divisoes_do_chefe(user):
@@ -127,7 +153,6 @@ class SolicitacaoDivisaoViewSet(
         )
         user = self.request.user
         if not _eh_dit(user):
-            from django.db.models import Q
             cond = Q(usuario=user)
             divisoes = _divisoes_do_chefe(user)
             if divisoes:

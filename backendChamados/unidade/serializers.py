@@ -29,12 +29,20 @@ class EnderecoSerializer(serializers.ModelSerializer):
 
 
 class SecretariaSerializer(serializers.ModelSerializer):
+    secretario_nome = serializers.SerializerMethodField()
+    qtd_divisoes = serializers.IntegerField(source='divisoes.count', read_only=True)
+
     class Meta:
         model = Secretaria
         fields = [
-            'id', 'nome', 'sigla', 'cor', 'secretario_responsavel',
+            'id', 'nome', 'sigla', 'cor',
+            'secretario_responsavel', 'secretario_nome', 'qtd_divisoes',
             'created_at', 'updated_at',
         ]
+
+    def get_secretario_nome(self, obj):
+        u = obj.secretario_responsavel
+        return (u.nome_completo or u.username) if u else None
 
 
 class DivisaoSerializer(serializers.ModelSerializer):

@@ -1,6 +1,10 @@
-import { Car, Ticket, AlertCircle, ArrowRight, Clock } from 'lucide-react'
+import { useRef, useState } from 'react'
+import { Car, AlertCircle, ArrowRight, Clock } from 'lucide-react'
+import Popover from '../../components/Popover'
 import Slot from './Slot'
-import { resolveTecnico, resolveVeiculo, resolveChamado, nomeEquipe } from './data'
+import { nomeEquipe } from './data'
+import { useChamadosDIT } from '../../hooks/useChamados'
+import { useVeiculos } from '../../hooks/useVeiculos'
 
 const C = {
   surface:   '#ffffff',
@@ -23,26 +27,27 @@ const URGENCIA_META = {
 
  
 
-export default function LobbyCard({ lobby, onEntrar, onSairCampo, onTrocarCarro, onTrocarChamado }) {
+export default function LobbyCard({ lobby, livres = [], onEntrar, onSair, onSairCampo, onTrocarCarro, onDesfazer }) {
+  const [escolhendoSlot, setEscolhendoSlot] = useState(null)
+  const [escolhendoChamado, setEscolhendoChamado] = useState(false)
+  const [escolhendoCarro, setEscolhendoCarro] = useState(false)
+  // botão que abriu o popover da vez (só um fica aberto por card)
+  const anchorRef = useRef(null)
+  const abrir = (setter, valor) => (e) => {
+    anchorRef.current = e.currentTarget
+    setter(valor)
+  }
 
-  function chamadoCriado(){
-    if(lobby.criado_em!=0){
-      console.log('AASADSADASDSDASDADDDDDDDD'+ lobby.criado_em)
-      return lobby.criado_em
-    } else {
-      return "--"
-    }
-  } 
-  
-  const veiculo = resolveVeiculo(lobby.veiculo_id)
-  const chamado = resolveChamado(lobby.chamado_codigo)
-  const tecnicos = lobby.tecnicos_ids.map(resolveTecnico).filter(Boolean)
+  const { veiculo, chamado, tecnicos = [] } = lobby
+  // Com carro, os assentos limitam a equipe. Sem carro (atendimento interno,
+  // no próprio prédio) não há limite: quem já entrou + um slot pra somar.
   const totalSlots = veiculo?.assentos ?? 0
   const slotsExibidos = totalSlots > 0
     ? Array.from({ length: totalSlots }).map((_, i) => tecnicos[i] || null)
-    : []
-  const comecoDaEquipe = chamadoCriado(lobby.criado_em)  
-  const podeSair = tecnicos.length >= 1 && veiculo && chamado
+    : [...tecnicos, null]
+  const comecoDaEquipe = lobby.criado_em || '--'
+  // pra ir a campo basta ter gente; o chamado é escolhido na hora de despachar
+  const podeSair = tecnicos.length >= 1
 
   return (
     <li
@@ -61,7 +66,7 @@ export default function LobbyCard({ lobby, onEntrar, onSairCampo, onTrocarCarro,
         <div className="flex flex-col gap-2 min-w-0 flex-1">
 
           <button
-            onClick={() => onTrocarCarro?.(lobby)}
+            onClick={abrir(setEscolhendoCarro, true)}
             className="flex items-center gap-2 text-left rounded-md px-2 py-1 -ml-2 transition-colors"
             onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f3f2ee')}
             onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
@@ -77,20 +82,20 @@ export default function LobbyCard({ lobby, onEntrar, onSairCampo, onTrocarCarro,
                 </span>
               </span>
             ) : (
-              <span className="text-[12px] italic" style={{ color: C.text3 }}>
-                Escolher carro
+              // sem carro é escolha válida (atendimento no próprio prédio),
+              // não pendência - por isso "Sem carro" e não "Escolher carro"
+              <span className="text-[12px]" style={{ color: C.text3 }}>
+                Sem carro
               </span>
             )}
           </button>
 
           <button
-            onClick={() => onTrocarChamado?.(lobby)}
-            className="flex items-center gap-2 text-left rounded-md px-2 py-1 -ml-2 transition-colors"
-            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f3f2ee')}
-            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-            title="Trocar chamado"
+            type="button"
+            disabled
+            className="flex items-center gap-2 text-left rounded-md px-2 py-1 -ml-2"
+            title="O chamado é escolhido ao mandar a equipe pro campo"
           >
-            <Ticket className="w-4 h-4 flex-shrink-0" strokeWidth={1.75} style={{ color: C.text2 }} />
             {chamado ? (
               <span className="text-[12px] flex items-center gap-1.5 min-w-0">
                 <span className="font-mono font-semibold flex-shrink-0" style={{ color: C.text1 }}>
@@ -111,8 +116,10 @@ export default function LobbyCard({ lobby, onEntrar, onSairCampo, onTrocarCarro,
                 </span>
               </span>
             ) : (
-              <span className="text-[12px] italic" style={{ color: C.text3 }}>
-                Escolher chamado
+              // sem chamado ainda: só o rótulo. Quando houver, o chamado ocupa
+              // esta mesma linha no lugar da palavra
+              <span className="text-[12px]" style={{ color: C.text3 }}>
+                Chamado
               </span>
             )}
           </button>
@@ -125,22 +132,35 @@ export default function LobbyCard({ lobby, onEntrar, onSairCampo, onTrocarCarro,
       </div>
 
       <div className="px-6 py-5" style={{ borderTop: `1px solid ${C.divider}` }}>
-        {totalSlots === 0 ? (
-          <div
-            className="flex items-center justify-center gap-2 py-6 text-[12px]"
-            style={{ color: C.text3, backgroundColor: C.surface2, borderRadius: 8 }}
-          >
-            <AlertCircle className="w-4 h-4" strokeWidth={1.75} />
-            Escolha um carro pra liberar os assentos da equipe.
-          </div>
-        ) : (
+        {(
           <div className="flex items-start justify-center gap-5 flex-wrap">
             {slotsExibidos.map((t, i) => (
-              <Slot
-                key={i}
-                tecnico={t}
-                onClick={() => onEntrar?.(lobby, i)}
-              />
+              <div key={i} className="relative">
+                <Slot
+                  tecnico={t}
+                  onClick={(e) => !t && abrir(setEscolhendoSlot, i)(e)}
+                />
+                {/* slot preenchido: clique tira o técnico da equipe */}
+                {t && (
+                  <button
+                    onClick={() => onSair?.(lobby, t.id)}
+                    className="absolute -top-1 -right-1 w-5 h-5 rounded-full text-[11px] leading-none flex items-center justify-center"
+                    style={{ backgroundColor: '#fee2e2', color: '#b91c1c', border: '1px solid #fecaca' }}
+                    title={`Tirar ${t.primeiro_nome} da equipe`}
+                  >
+                    ×
+                  </button>
+                )}
+                {/* slot vazio clicado: lista de técnicos livres */}
+                {escolhendoSlot === i && !t && (
+                  <ListaTecnicosLivres
+                    anchorRef={anchorRef}
+                    livres={livres}
+                    onEscolher={(tecnicoId) => { setEscolhendoSlot(null); onEntrar?.(lobby, tecnicoId) }}
+                    onFechar={() => setEscolhendoSlot(null)}
+                  />
+                )}
+              </div>
             ))}
           </div>
         )}
@@ -152,7 +172,11 @@ export default function LobbyCard({ lobby, onEntrar, onSairCampo, onTrocarCarro,
             </span>
             {' · '}
             <span style={{ color: C.text3 }}>
-              {tecnicos.length}/{totalSlots} {tecnicos.length === 1 ? 'integrante' : 'integrantes'}
+              {/* sem carro não há teto de integrantes */}
+              {totalSlots > 0 ? `${tecnicos.length}/${totalSlots}` : tecnicos.length}
+              {' '}
+              {tecnicos.length === 1 ? 'integrante' : 'integrantes'}
+              {totalSlots === 0 && ' · interno'}
             </span>
           </div>
         )}
@@ -162,8 +186,21 @@ export default function LobbyCard({ lobby, onEntrar, onSairCampo, onTrocarCarro,
         className="px-6 py-3 flex items-center justify-end gap-2"
         style={{ backgroundColor: C.surface2, borderTop: `1px solid ${C.divider}` }}
       >
+        {/* Lobby sem ninguém não vira equipe: permite desfazer em vez de virar fantasma */}
+        {onDesfazer && tecnicos.length === 0 && (
+          <button
+            onClick={() => onDesfazer(lobby)}
+            className="mr-auto px-3 py-1.5 rounded-md text-[12px] transition-colors"
+            style={{ color: '#b91c1c' }}
+            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#fee2e2')}
+            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+          >
+            Desfazer equipe
+          </button>
+        )}
+
         <button
-          onClick={() => podeSair && onSairCampo?.(lobby)}
+          onClick={(e) => podeSair && abrir(setEscolhendoChamado, true)(e)}
           disabled={!podeSair}
           className="flex items-center gap-1.5 px-4 py-1.5 rounded-md text-[12px] font-medium transition-colors"
           style={{
@@ -173,12 +210,162 @@ export default function LobbyCard({ lobby, onEntrar, onSairCampo, onTrocarCarro,
           }}
           onMouseEnter={(e) => { if (podeSair) e.currentTarget.style.backgroundColor = C.accentInk }}
           onMouseLeave={(e) => { if (podeSair) e.currentTarget.style.backgroundColor = C.accent }}
-          title={podeSair ? '' : 'Falta escolher carro, chamado e ao menos 1 integrante'}
+          title={podeSair ? 'Escolher o chamado e despachar' : 'A equipe precisa de ao menos 1 integrante'}
         >
           Sair pra campo
           <ArrowRight className="w-3.5 h-3.5" strokeWidth={2} />
         </button>
       </div>
+
+      {/* Popovers ficam fora do fluxo do card: ele tem overflow-hidden e
+          cortaria qualquer menu posicionado por dentro. */}
+      {escolhendoCarro && (
+        <EscolherVeiculo
+          anchorRef={anchorRef}
+          onEscolher={(veiculoId) => { setEscolhendoCarro(false); onTrocarCarro?.(lobby, veiculoId) }}
+          onFechar={() => setEscolhendoCarro(false)}
+        />
+      )}
+      {escolhendoChamado && (
+        <EscolherChamado
+          anchorRef={anchorRef}
+          onEscolher={(chamadoId) => { setEscolhendoChamado(false); onSairCampo?.(lobby, chamadoId) }}
+          onFechar={() => setEscolhendoChamado(false)}
+        />
+      )}
     </li>
+  )
+}
+
+// Popover: escolhe qual técnico livre ocupa o assento
+function ListaTecnicosLivres({ anchorRef, livres, onEscolher, onFechar }) {
+  return (
+    <Popover anchorRef={anchorRef} onFechar={onFechar} largura={224} alturaMax={224}>
+      <ul className="list-none p-1 m-0">
+        {livres.length === 0 ? (
+          <li className="px-3 py-2 text-[12px]" style={{ color: C.text3 }}>
+            Nenhum técnico livre no momento.
+          </li>
+        ) : (
+          livres.map((t) => (
+            <li key={t.id}>
+              <button
+                onClick={() => onEscolher(t.id)}
+                className="w-full text-left px-3 py-2 rounded text-[12px] transition-colors flex items-center gap-2"
+                style={{ color: C.text1 }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = C.surface2)}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+              >
+                <span
+                  className="w-6 h-6 rounded-full inline-flex items-center justify-center text-[10px] font-semibold text-white flex-shrink-0"
+                  style={{ backgroundColor: t.cor || C.accent }}
+                >
+                  {(t.nome_completo || '').split(' ').slice(0, 2).map((p) => p[0]).join('')}
+                </span>
+                <span className="truncate">{t.nome_completo}</span>
+              </button>
+            </li>
+          ))
+        )}
+      </ul>
+    </Popover>
+  )
+}
+
+// Popover: escolhe o chamado que a equipe vai atender
+function EscolherChamado({ anchorRef, onEscolher, onFechar }) {
+  const { data: chamados = [] } = useChamadosDIT()
+  // só o que ainda precisa de atendimento
+  const atendiveis = chamados.filter(
+    (c) => c.statusReal === 'aberto' || c.statusReal === 'agendado'
+  )
+
+  return (
+    <Popover
+      anchorRef={anchorRef} onFechar={onFechar}
+      largura={320} alturaMax={256} alinhamento="direita"
+    >
+      <ul className="list-none p-1 m-0">
+        {atendiveis.length === 0 ? (
+          <li className="px-3 py-2 text-[12px]" style={{ color: C.text3 }}>
+            Nenhum chamado aberto para atender.
+          </li>
+        ) : (
+          atendiveis.map((c) => (
+            <li key={c.id}>
+              <button
+                onClick={() => onEscolher(c.id)}
+                className="w-full text-left px-3 py-2 rounded transition-colors"
+                style={{ color: C.text1 }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = C.surface2)}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-[11px] font-semibold" style={{ color: C.text3 }}>
+                    #{c.code}
+                  </span>
+                  <span className="text-[12px] truncate">{c.title}</span>
+                </div>
+                <div className="text-[10px] mt-0.5 truncate" style={{ color: C.text3 }}>
+                  {c.address}
+                </div>
+              </button>
+            </li>
+          ))
+        )}
+      </ul>
+    </Popover>
+  )
+}
+
+// Popover: escolhe o carro do lobby (define quantos assentos a equipe tem)
+function EscolherVeiculo({ anchorRef, onEscolher, onFechar }) {
+  const { data: veiculos = [] } = useVeiculos()
+  const disponiveis = veiculos.filter((v) => v.status === 0)
+
+  return (
+    <Popover
+      anchorRef={anchorRef} onFechar={onFechar}
+      largura={288} alturaMax={224} alinhamento="esquerda"
+    >
+      <ul className="list-none p-1 m-0">
+        {/* atendimento no próprio prédio não precisa de carro - e sem carro a
+            equipe também deixa de ter teto de integrantes */}
+        <li style={{ borderBottom: `1px solid ${C.divider}` }}>
+          <button
+            onClick={(e) => { e.stopPropagation(); onEscolher(null) }}
+            className="w-full text-left px-3 py-2 rounded text-[12px] transition-colors"
+            style={{ color: C.text1 }}
+            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = C.surface2)}
+            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+          >
+            Sem carro
+            <span className="ml-1.5" style={{ color: C.text3 }}>· atendimento interno</span>
+          </button>
+        </li>
+        {disponiveis.length === 0 ? (
+          <li className="px-3 py-2 text-[12px]" style={{ color: C.text3 }}>
+            Nenhum veículo disponível.
+          </li>
+        ) : (
+          disponiveis.map((v) => (
+            <li key={v.id}>
+              <button
+                onClick={(e) => { e.stopPropagation(); onEscolher(v.id) }}
+                className="w-full text-left px-3 py-2 rounded text-[12px] transition-colors"
+                style={{ color: C.text1 }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = C.surface2)}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+              >
+                <span className="font-mono font-semibold">{v.placa}</span>
+                <span className="mx-1.5" style={{ color: C.text3 }}>·</span>
+                {v.marca} {v.modelo}
+                <span className="ml-1" style={{ color: C.text3 }}>({v.assentos} lug.)</span>
+              </button>
+            </li>
+          ))
+        )}
+      </ul>
+    </Popover>
   )
 }

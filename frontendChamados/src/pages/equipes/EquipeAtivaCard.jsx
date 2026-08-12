@@ -1,5 +1,6 @@
+import { useState } from 'react'
 import { Car, Ticket, Users, Clock, History } from 'lucide-react'
-import { resolveTecnico, resolveVeiculo, resolveChamado, nomeEquipe } from './data'
+import { nomeEquipe, MOTIVO_ENCERRAMENTO_META } from './data'
 
 const C = {
   surface:   '#ffffff',
@@ -13,10 +14,9 @@ const C = {
   ativaFg:   '#1e3a8a',
 }
 
-export default function EquipeAtivaCard({ equipe }) {
-  const veiculo = resolveVeiculo(equipe.veiculo_id)
-  const chamado = resolveChamado(equipe.chamado_atual_codigo)
-  const tecnicos = equipe.tecnicos_ids.map(resolveTecnico).filter(Boolean)
+export default function EquipeAtivaCard({ equipe, onEncerrar }) {
+  const [encerrando, setEncerrando] = useState(false)
+  const { veiculo, chamado, tecnicos = [] } = equipe
 
   return (
     <li
@@ -93,12 +93,50 @@ export default function EquipeAtivaCard({ equipe }) {
       </div>
 
       <div
-        className="px-6 py-2.5 flex items-center gap-2 text-[11px]"
+        className="px-6 py-2.5 flex items-center justify-between gap-2 text-[11px]"
         style={{ backgroundColor: C.surface2, borderTop: `1px solid ${C.divider}`, color: C.text2 }}
       >
-        <History className="w-3 h-3" strokeWidth={1.75} style={{ color: C.text3 }} />
-        <span className="font-medium" style={{ color: C.text1 }}>{equipe.qtd_atendimentos_hoje}</span>
-        atendimentos hoje
+        <span className="flex items-center gap-2">
+          <History className="w-3 h-3" strokeWidth={1.75} style={{ color: C.text3 }} />
+          <span className="font-medium" style={{ color: C.text1 }}>{equipe.qtd_atendimentos_hoje}</span>
+          atendimentos hoje
+        </span>
+
+        {/* Encerrar: o motivo define o que acontece com o chamado */}
+        {onEncerrar && (
+          encerrando ? (
+            <span className="flex items-center gap-1.5">
+              {Object.entries(MOTIVO_ENCERRAMENTO_META).map(([valor, meta]) => (
+                <button
+                  key={valor}
+                  onClick={() => { setEncerrando(false); onEncerrar(equipe, Number(valor)) }}
+                  className="px-2 py-1 rounded text-[10px] font-medium"
+                  style={{ backgroundColor: `${meta.cor}1a`, color: meta.cor, border: `1px solid ${meta.cor}55` }}
+                  title={valor === '0' ? 'Finaliza o chamado' : 'Encerra a equipe sem finalizar o chamado'}
+                >
+                  {meta.label}
+                </button>
+              ))}
+              <button
+                onClick={() => setEncerrando(false)}
+                className="px-2 py-1 rounded text-[10px]"
+                style={{ color: C.text3 }}
+              >
+                cancelar
+              </button>
+            </span>
+          ) : (
+            <button
+              onClick={() => setEncerrando(true)}
+              className="px-2.5 py-1 rounded text-[11px] font-medium transition-colors"
+              style={{ backgroundColor: '#fff', color: C.text2, border: `1px solid ${C.border}` }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f3f2ee')}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#fff')}
+            >
+              Encerrar equipe
+            </button>
+          )
+        )}
       </div>
     </li>
   )

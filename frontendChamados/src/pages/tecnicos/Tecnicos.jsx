@@ -1,9 +1,11 @@
 import { useMemo, useState } from 'react'
-import { Plus, Search } from 'lucide-react'
+import { Plus, Search, Loader2, AlertCircle } from 'lucide-react'
 
 import TecnicoCard from './TecnicoCard'
 import TecnicoDrawer from './TecnicoDrawer'
-import { SEED_TECNICOS, RESP_META, STATUS_META, getResumo } from './data'
+import TecnicoModal from './TecnicoModal'
+import { RESP_META, STATUS_META, getResumo } from './data'
+import { useTecnicos } from '../../hooks/useTecnicos'
 
 const C = {
   bg:        '#f7f7f4',
@@ -20,19 +22,18 @@ const C = {
 const STATUS_FILTROS = [
   { value: 'todos',      label: 'Todos' },
   { value: 'em_campo',   label: 'Em campo' },
-  { value: 'em_lobby',   label: 'Em formação' },
   { value: 'disponivel', label: 'Disponível' },
   { value: 'folga',      label: 'Folga' },
 ]
 
 export default function Tecnicos() {
-  // TODO: trocar por useQuery quando wire na API
-  const todos = SEED_TECNICOS
+  const { data: todos = [], isLoading, isError, error } = useTecnicos()
 
   const [busca, setBusca] = useState('')
   const [filtroResp, setFiltroResp] = useState(null)
   const [filtroStatus, setFiltroStatus] = useState('todos')
   const [selecionado, setSelecionado] = useState(null)
+  const [editando, setEditando] = useState(undefined) // undefined=fechado, null=novo, obj=editar
 
   const filtrados = useMemo(() => {
     const q = busca.trim().toLowerCase()
@@ -64,13 +65,13 @@ export default function Tecnicos() {
             <div className="text-[12px] mt-0.5 flex items-center gap-3 flex-wrap" style={{ color: C.text2 }}>
               <span>{todos.length} cadastrados</span>
               <Stat status="em_campo"   count={resumo.em_campo} />
-              <Stat status="em_lobby"   count={resumo.em_lobby} />
               <Stat status="disponivel" count={resumo.disponivel} />
               <Stat status="folga"      count={resumo.folga} />
             </div>
           </div>
 
           <button
+            onClick={() => setEditando(null)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium transition-colors"
             style={{ backgroundColor: C.accent, color: '#fff' }}
             onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = C.accentInk)}
@@ -131,7 +132,21 @@ export default function Tecnicos() {
 
       {/* Grid */}
       <div className="flex-1 overflow-y-auto p-6">
-        {filtrados.length === 0 ? (
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center gap-3 py-16" style={{ color: C.text3 }}>
+            <Loader2 className="w-6 h-6 animate-spin" strokeWidth={1.75} />
+            <span className="text-[13px]">Carregando técnicos…</span>
+          </div>
+        ) : isError ? (
+          <div className="flex flex-col items-center justify-center gap-3 py-16" style={{ color: C.text3 }}>
+            <AlertCircle className="w-6 h-6" strokeWidth={1.75} />
+            <span className="text-[13px] max-w-xs text-center">
+              {error?.status === 401 || error?.status === 403
+                ? 'Sem permissão. Faça login no /admin (mesmo navegador) e recarregue.'
+                : `Erro ao carregar técnicos${error?.status ? ` (${error.status})` : ''}.`}
+            </span>
+          </div>
+        ) : filtrados.length === 0 ? (
           <div
             className="max-w-md mx-auto text-center py-12 rounded-lg"
             style={{
@@ -140,7 +155,11 @@ export default function Tecnicos() {
               color: C.text3,
             }}
           >
-            <div className="text-[13px]">Nenhum técnico encontrado.</div>
+            <div className="text-[13px]">
+              {todos.length === 0
+                ? 'Nenhum técnico cadastrado. Clique em "Novo técnico" para começar.'
+                : 'Nenhum técnico encontrado.'}
+            </div>
           </div>
         ) : (
           <ul
@@ -162,8 +181,12 @@ export default function Tecnicos() {
         <TecnicoDrawer
           tecnico={selecionado}
           onClose={() => setSelecionado(null)}
-          onEditar={() => { /* TODO */ }}
+          onEditar={(t) => { setSelecionado(null); setEditando(t) }}
         />
+      )}
+
+      {editando !== undefined && (
+        <TecnicoModal tecnico={editando} onClose={() => setEditando(undefined)} />
       )}
     </div>
   )

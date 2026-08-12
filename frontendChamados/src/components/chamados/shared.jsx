@@ -35,13 +35,15 @@ export const StatusChip = ({ s }) => {
         className="w-1.5 h-1.5 rounded-full flex-shrink-0"
         style={{ backgroundColor: m.dot }}
       />
-      {m.label}
+      {m.curto || m.label}
     </span>
   )
 }
 
 // Chip de prioridade - centralizado + shadow leve
-export const PriorityCell = ({ p }) => {
+// `escalonada` = subiu sozinha por tempo em aberto, ninguém definiu na mão.
+// A seta deixa isso explícito pro despachante não achar que alguém mexeu.
+export const PriorityCell = ({ p, escalonada, dias }) => {
   const m = PRIORITY_META[p] || {}
   const isUrgent = p === 'urgente'
   return (
@@ -53,6 +55,7 @@ export const PriorityCell = ({ p }) => {
         boxShadow: '0 1px 2px rgba(20,22,36,0.06)',
         minWidth: 72,
       }}
+      title={escalonada ? `Subiu sozinha: ${dias} dias em aberto` : undefined}
     >
       {isUrgent && (
         <span
@@ -61,6 +64,7 @@ export const PriorityCell = ({ p }) => {
         />
       )}
       {m.label}
+      {escalonada && <span className="flex-shrink-0 leading-none">↑</span>}
     </span>
   )
 }

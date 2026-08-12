@@ -14,7 +14,7 @@ const C = {
   accentInk:'#2d2783',
 }
 
-export default function SecretariaDrawer({ secretaria, onClose, onEditar }) {
+export default function SecretariaDrawer({ secretaria, onClose, onEditar, onNovaDivisao, onEditarDivisao }) {
   // ESC fecha
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') onClose() }
@@ -110,7 +110,12 @@ export default function SecretariaDrawer({ secretaria, onClose, onEditar }) {
           ) : (
             <ul className="list-none p-0 m-0">
               {secretaria.divisoes.map((d) => (
-                <DivisaoItem key={d.id} divisao={d} corSecretaria={secretaria.cor} />
+                <DivisaoItem
+                  key={d.id}
+                  divisao={d}
+                  corSecretaria={secretaria.cor}
+                  onEditar={onEditarDivisao}
+                />
               ))}
             </ul>
           )}
@@ -122,6 +127,7 @@ export default function SecretariaDrawer({ secretaria, onClose, onEditar }) {
           style={{ backgroundColor: C.surface2, borderTop: `1px solid ${C.divider}` }}
         >
           <button
+            onClick={() => onNovaDivisao?.(secretaria)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] transition-colors"
             style={{ color: C.text2 }}
             onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = C.hover; e.currentTarget.style.color = C.text1 }}
@@ -147,7 +153,7 @@ export default function SecretariaDrawer({ secretaria, onClose, onEditar }) {
   )
 }
 
-function DivisaoItem({ divisao, corSecretaria }) {
+function DivisaoItem({ divisao, corSecretaria, onEditar }) {
   const [aberto, setAberto] = useState(false)
 
   return (
@@ -182,6 +188,23 @@ function DivisaoItem({ divisao, corSecretaria }) {
             {divisao.unidades.length} {divisao.unidades.length === 1 ? 'unidade' : 'unidades'}
           </div>
         </div>
+
+        {/* editar não pode abrir/fechar o acordeão junto */}
+        {onEditar && (
+          <span
+            role="button"
+            tabIndex={0}
+            onClick={(e) => { e.stopPropagation(); onEditar(divisao) }}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); onEditar(divisao) } }}
+            className="w-7 h-7 rounded flex items-center justify-center flex-shrink-0 transition-colors"
+            style={{ color: C.text3 }}
+            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#eef0ff'; e.currentTarget.style.color = C.accent }}
+            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = C.text3 }}
+            title="Editar divisão"
+          >
+            <Pencil className="w-3.5 h-3.5" strokeWidth={1.75} />
+          </span>
+        )}
       </button>
 
       {aberto && divisao.unidades.length > 0 && (

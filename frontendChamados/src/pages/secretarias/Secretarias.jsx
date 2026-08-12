@@ -3,6 +3,8 @@ import { Plus, Search, Loader2, AlertCircle } from 'lucide-react'
 
 import SecretariaCard from './SecretariaCard'
 import SecretariaDrawer from './SecretariaDrawer'
+import SecretariaModal from './SecretariaModal'
+import DivisaoModal from './DivisaoModal'
 import { useSecretariasArvore } from '../../hooks/useLocalidades'
 
 const C = {
@@ -22,6 +24,9 @@ export default function Secretarias() {
 
   const [busca, setBusca] = useState('')
   const [selecionada, setSelecionada] = useState(null)
+  // undefined = fechado | null = novo | objeto = editando
+  const [editandoSec, setEditandoSec] = useState(undefined)
+  const [editandoDiv, setEditandoDiv] = useState(undefined)
 
   const filtradas = useMemo(() => {
     const q = busca.trim().toLowerCase()
@@ -57,6 +62,7 @@ export default function Secretarias() {
           </div>
 
           <button
+            onClick={() => setEditandoSec(null)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium transition-colors"
             style={{ backgroundColor: C.accent, color: '#fff' }}
             onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = C.accentInk)}
@@ -138,7 +144,24 @@ export default function Secretarias() {
         <SecretariaDrawer
           secretaria={selecionada}
           onClose={() => setSelecionada(null)}
-          onEditar={() => { /* TODO: modal de edição */ }}
+          onEditar={(s) => setEditandoSec(s)}
+          onNovaDivisao={() => setEditandoDiv(null)}
+          onEditarDivisao={(d) => setEditandoDiv(d)}
+        />
+      )}
+
+      {editandoSec !== undefined && (
+        <SecretariaModal
+          secretaria={editandoSec}
+          onClose={() => setEditandoSec(undefined)}
+        />
+      )}
+
+      {editandoDiv !== undefined && (
+        <DivisaoModal
+          divisao={editandoDiv}
+          secretaria={selecionada}
+          onClose={() => setEditandoDiv(undefined)}
         />
       )}
     </div>

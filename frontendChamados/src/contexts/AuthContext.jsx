@@ -8,12 +8,22 @@ import { authApi } from '../api/auth'
 
 const AuthContext = createContext(null)
 
-// perfil de UI: 'dit' tem o sistema completo; 'solicitante' só abre chamados.
-// (despachante/técnico virão do futuro model Tecnico.)
+// Perfil de UI — quem decide é o backend (core/papeis.perfil_operacional),
+// pra que o menu e as regras da API não possam divergir:
+//   'gestao'      sistema completo (despachante, chefe, secretário, TI)
+//   'tecnico'     versão de campo, mobile-first: atende chamado
+//   'aprendiz'    versão de campo, só acompanha: entra em equipe e observa
+//   'solicitante' portal restrito: abre e acompanha os próprios chamados
 export function perfilFromUser(user) {
   if (!user) return null
-  return user.eh_dit ? 'dit' : 'solicitante'
+  if (user.perfil) return user.perfil
+  // fallback pra sessão antiga em cache, antes do campo existir
+  return user.eh_dit ? 'gestao' : 'solicitante'
 }
+
+// os dois perfis de campo compartilham telas e layout
+export const PERFIS_CAMPO = ['tecnico', 'aprendiz']
+export const ehPerfilCampo = (perfil) => PERFIS_CAMPO.includes(perfil)
 
 export function AuthProvider({ children }) {
   const qc = useQueryClient()

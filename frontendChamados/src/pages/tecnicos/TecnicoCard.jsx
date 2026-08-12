@@ -97,8 +97,17 @@ export default function TecnicoCard({ tecnico, onClick }) {
               {status.label}
             </span>
           </div>
-          <div className="text-[10px] mt-1.5 font-mono" style={{ color: C.text3 }}>
-            {tecnico.matricula}
+          <div className="flex items-center gap-2 mt-1.5">
+            {tecnico.cargo_display && (
+              <span className="text-[10px] font-medium" style={{ color: C.text2 }}>
+                {tecnico.cargo_display}
+              </span>
+            )}
+            {tecnico.matricula && (
+              <span className="text-[10px] font-mono" style={{ color: C.text3 }}>
+                {tecnico.matricula}
+              </span>
+            )}
           </div>
         </div>
       </div>

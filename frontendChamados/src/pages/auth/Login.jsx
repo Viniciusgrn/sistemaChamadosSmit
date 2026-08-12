@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Loader2, LogIn } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 
@@ -18,6 +19,7 @@ const C = {
 
 export default function Login() {
   const { login } = useAuth()
+  const navigate = useNavigate()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
 
@@ -28,7 +30,12 @@ export default function Login() {
   const submit = (e) => {
     e.preventDefault()
     if (!pode || carregando) return
-    login.mutate({ username: username.trim(), password })
+    // manda pra raiz: cada perfil resolve daí pros seus chamados
+    // (DIT vai pra /chamados, solicitante abre o portal já na lista dele)
+    login.mutate(
+      { username: username.trim(), password },
+      { onSuccess: () => navigate('/', { replace: true }) }
+    )
   }
 
   return (

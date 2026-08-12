@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from 'react'
 import { X, RotateCcw, Calendar } from 'lucide-react'
-import { PRIORITY_META } from '../../pages/chamados/data'
+import { PRIORITY_META, STATUS_META } from '../../pages/chamados/data'
 
 const C = {
   surface:  '#ffffff',
@@ -51,6 +51,7 @@ export default function FiltrosAvancados({
   setFiltros,
   parsedSecretarias,   // [{ secretaria, divisoes: Set<string> }]
   equipes,
+  statusDisponiveis = [],   // etapas que fazem sentido na aba atual
 }) {
   useEffect(() => {
     if (!open) return
@@ -86,6 +87,14 @@ export default function FiltrosAvancados({
     })
   }
 
+  const toggleStatus = (s) => {
+    setFiltros((f) => {
+      const set = new Set(f.status)
+      if (set.has(s)) set.delete(s); else set.add(s)
+      return { ...f, status: Array.from(set) }
+    })
+  }
+
   const aplicarPreset = (tipo) => {
     const { inicio, fim } = preset(tipo)
     setFiltros((f) => ({ ...f, data_inicio: inicio, data_fim: fim }))
@@ -95,6 +104,7 @@ export default function FiltrosAvancados({
     data_inicio: '',
     data_fim: '',
     prioridades: [],
+    status: [],
     equipe: 'todas',
     equipe_id: null,
     secretaria: '',
@@ -161,6 +171,37 @@ export default function FiltrosAvancados({
             />
           </div>
         </Grupo>
+
+        {/* Status - é o que separa as etapas dentro da aba "Em aberto" */}
+        {statusDisponiveis.length > 1 && (
+          <Grupo label="Status" hint="Múltipla seleção" colSpan>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {statusDisponiveis.map((s) => {
+                const ativo = filtros.status.includes(s)
+                const meta = STATUS_META[s]
+                if (!meta) return null
+                return (
+                  <button
+                    key={s}
+                    onClick={() => toggleStatus(s)}
+                    className="inline-flex items-center gap-1.5 px-2 py-1 rounded text-[11px] font-medium tracking-tight transition-colors"
+                    style={
+                      ativo
+                        ? { backgroundColor: meta.bg, color: meta.fg, border: `1px solid ${meta.fg}33`, boxShadow: '0 1px 2px rgba(20,22,36,0.06)' }
+                        : { backgroundColor: C.surface, color: C.text2, border: `1px solid ${C.border}` }
+                    }
+                  >
+                    <span
+                      className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: ativo ? meta.dot : C.text3 }}
+                    />
+                    {meta.curto || meta.label}
+                  </button>
+                )
+              })}
+            </div>
+          </Grupo>
+        )}
 
         {/* Prioridade */}
         <Grupo label="Prioridade" hint="Múltipla seleção">

@@ -1,9 +1,8 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Plus, Ticket, Loader2, AlertCircle, Clock, X, UserPlus, Check } from 'lucide-react'
-
 import { useAuth } from '../../contexts/AuthContext'
-import { useChamadosVisiveis, useAbrirChamado } from '../../hooks/useChamados'
+import { useChamadosVisiveis, useAbrirChamado, useCancelarChamado } from '../../hooks/useChamados'
 import { useUnidadesLista } from '../../hooks/useLocalidades'
 import {
   useSolicitacoesDivisao, useAprovarSolicitacao, useRecusarSolicitacao,
@@ -24,16 +23,29 @@ const C = {
 }
 
 const STATUS_META = {
-  0: { label: 'Aberto',       cor: '#ea580c', bg: '#fff1e6' },
-  1: { label: 'Em andamento', cor: '#2563eb', bg: '#e5edff' },
-  2: { label: 'Finalizado',   cor: '#16a34a', bg: '#dcfce7' },
+  0: { label: 'Aberto',        cor: '#ea580c', bg: '#fff1e6' },
+  1: { label: 'Em andamento',  cor: '#2563eb', bg: '#e5edff' },
+  2: { label: 'Finalizado',    cor: '#16a34a', bg: '#dcfce7' },
+  3: { label: 'Cancelado',     cor: '#6b7280', bg: '#f1f1ef' },
+  4: { label: 'Em manutenção', cor: '#7c3aed', bg: '#f3e8ff' },
+  5: { label: 'Agendado',      cor: '#6366f1', bg: '#eef2ff' },
+  6: { label: 'Encaminhado p/ terceirizada', cor: '#475569', bg: '#f1f5f9' },
 }
 
+// Concluídos junta Finalizado + Cancelado (o que saiu da fila)
+// Enquanto não é finalizado nem cancelado, o chamado continua "em aberto" -
+// não importa se está agendado, em manutenção ou com terceirizada. Quem quer
+// ver a etapa exata olha o selo de status na linha.
+const ABERTO = 'abertos'
+const FINALIZADO = 'finalizados'
+
 const ABAS = [
-  { status: 0, label: 'Abertos' },
-  { status: 1, label: 'Em andamento' },
-  { status: 2, label: 'Concluídos' },
+  { status: ABERTO,     label: 'Em aberto',   vazio: 'Nenhum chamado em aberto.' },
+  { status: FINALIZADO, label: 'Finalizados', vazio: 'Nenhum chamado finalizado.' },
 ]
+
+// status_chamado 2 (Finalizado) e 3 (Cancelado) saíram da fila
+const ENCERRADOS = [2, 3]
 
 const TIPO_OPCOES = [
   { value: 0, label: 'Helpdesk' },
@@ -46,7 +58,7 @@ export default function ChamadosSolicitante() {
   const { user } = useAuth()
   const { data: chamados = [], isLoading, isError } = useChamadosVisiveis()
   const [abrindo, setAbrindo] = useState(false)
-  const [aba, setAba] = useState(0) // 0/1/2 = status; 'solicitacoes' = aba do chefe
+  const [aba, setAba] = useState(ABERTO) // ABERTO | FINALIZADO | 'solicitacoes'
   const [soMeus, setSoMeus] = useState(false)
 
   // sem setor e sem privilégio → não abre chamado, precisa pedir vínculo
@@ -63,10 +75,10 @@ export default function ChamadosSolicitante() {
   const mostraAbaSolicitacoes = !!user?.eh_chefe
 
   const porStatus = useMemo(() => {
-    const m = { 0: [], 1: [], 2: [] }
+    const m = { [ABERTO]: [], [FINALIZADO]: [] }
     for (const c of chamados) {
       if (soMeus && c.solicitante !== user?.id) continue
-      ;(m[c.status_chamado] ?? m[0]).push(c)
+      m[ENCERRADOS.includes(c.status_chamado) ? FINALIZADO : ABERTO].push(c)
     }
     return m
   }, [chamados, soMeus, user])
@@ -198,7 +210,7 @@ export default function ChamadosSolicitante() {
             >
               <Ticket className="w-8 h-8 mx-auto mb-2 opacity-50" strokeWidth={1.5} />
               <div className="text-[13px]">
-                Nenhum chamado {ABAS.find((a) => a.status === aba)?.label.toLowerCase()}.
+                {ABAS.find((a) => a.status === aba)?.vazio}
               </div>
             </div>
           ) : multiDivisao ? (
@@ -372,14 +384,60 @@ function ChamadoCard({ chamado: c, meu }) {
             </span>
           </div>
         </div>
-        <span
-          className="px-2 py-0.5 rounded text-[11px] font-medium flex-shrink-0"
-          style={{ backgroundColor: st.bg, color: st.cor }}
-        >
-          {st.label}
-        </span>
+        <div className="flex flex-col items-end gap-2 flex-shrink-0">
+          <span
+            className="px-2 py-0.5 rounded text-[11px] font-medium"
+            style={{ backgroundColor: st.bg, color: st.cor }}
+          >
+            {st.label}
+          </span>
+
+          {/* só o dono cancela, e só enquanto ninguém assumiu (Aberto) */}
+          {meu && c.status_chamado === 0 && <BotaoCancelar id={c.id} />}
+        </div>
       </div>
     </li>
+  )
+}
+
+// Cancelamento com confirmação inline (evita cancelar sem querer)
+function BotaoCancelar({ id }) {
+  const [confirmando, setConfirmando] = useState(false)
+  const cancelar = useCancelarChamado()
+
+  if (!confirmando) {
+    return (
+      <button
+        onClick={() => setConfirmando(true)}
+        className="text-[11px] px-2 py-1 rounded transition-colors"
+        style={{ color: C.text3 }}
+        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#fee2e2'; e.currentTarget.style.color = '#b91c1c' }}
+        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = C.text3 }}
+      >
+        Cancelar chamado
+      </button>
+    )
+  }
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className="text-[11px]" style={{ color: C.text2 }}>Confirmar?</span>
+      <button
+        onClick={() => cancelar.mutate(id)}
+        disabled={cancelar.isPending}
+        className="text-[11px] px-2 py-1 rounded font-medium"
+        style={{ backgroundColor: '#dc2626', color: '#fff' }}
+      >
+        {cancelar.isPending ? 'Cancelando…' : 'Sim'}
+      </button>
+      <button
+        onClick={() => setConfirmando(false)}
+        className="text-[11px] px-2 py-1 rounded"
+        style={{ color: C.text2 }}
+      >
+        Não
+      </button>
+    </div>
   )
 }
 

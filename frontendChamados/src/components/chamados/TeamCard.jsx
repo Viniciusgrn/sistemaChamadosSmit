@@ -1,8 +1,16 @@
-import { Car, MapPin, Clock } from 'lucide-react'
+import { Car, MapPin, Clock, Building2 } from 'lucide-react'
 import { TEAM_STATUS_META } from "../../pages/chamados/data"
+
+// Interno = chamado no Paço, onde a SMIT fica: resolve sem sair do prédio.
+// Externo = tem que ir até a unidade (por isso o carro importa).
+const LOCAL_META = {
+  true:  { label: 'Interno', fg: '#0f766e', bg: '#ccfbf1' },
+  false: { label: 'Externo', fg: '#b45309', bg: '#fef3c7' },
+}
 
 export default function TeamCard({ team, onClick }) {
   const meta = TEAM_STATUS_META[team.status]
+  const local = team.interno == null ? null : LOCAL_META[team.interno]
 
   // Espaçamento entre avatares: equipes pequenas respiram mais, grandes se compactam
   const n = team.members.length
@@ -55,15 +63,26 @@ export default function TeamCard({ team, onClick }) {
       </div>
 
       <div style={{ height: 1, backgroundColor: '#ececea' }} />
-      <div
-        className="flex items-center gap-1.5 text-[11px] font-medium leading-none"
-        style={{ color: meta.color }}
-      >
-        <span
-          className="w-2 h-2 rounded-full flex-shrink-0"
-          style={{ backgroundColor: meta.color }}
-        />
-        {meta.label}
+      <div className="flex items-center justify-between gap-2">
+        <div
+          className="flex items-center gap-1.5 text-[11px] font-medium leading-none min-w-0"
+          style={{ color: meta.color }}
+        >
+          <span
+            className="w-2 h-2 rounded-full flex-shrink-0"
+            style={{ backgroundColor: meta.color }}
+          />
+          <span className="truncate">{meta.label}</span>
+        </div>
+        {local && (
+          <span
+            className="px-1.5 py-0.5 rounded text-[10px] font-semibold leading-none flex-shrink-0 whitespace-nowrap"
+            style={{ backgroundColor: local.bg, color: local.fg }}
+            title={team.interno ? 'Atendimento no Paço Municipal' : 'Atendimento fora do Paço'}
+          >
+            {local.label}
+          </span>
+        )}
       </div>
 
       <div>
@@ -84,21 +103,28 @@ export default function TeamCard({ team, onClick }) {
       </div>
 
       <div className="mt-auto flex flex-col gap-1.5 text-[11px]" style={{ color: '#5b5e68' }}>
+        {/* equipe pode estar sem carro definido */}
         <div
           className="flex items-center gap-1.5 min-w-0 leading-none"
-          title={`${team.vehicle.plate} · ${team.vehicle.model}`}
+          title={team.vehicle ? `${team.vehicle.plate} · ${team.vehicle.model}` : 'Sem veículo'}
         >
           <Car className="w-3.5 h-3.5 flex-shrink-0" strokeWidth={1.75} style={{ color: '#8b8d96' }} />
-          <span className="truncate">
-            <span className="font-mono font-semibold" style={{ color: '#15161b' }}>
-              {team.vehicle.plate}
+          {team.vehicle ? (
+            <span className="truncate">
+              <span className="font-mono font-semibold" style={{ color: '#15161b' }}>
+                {team.vehicle.plate}
+              </span>
+              {' · '}
+              {team.vehicle.model}
             </span>
-            {' · '}
-            {team.vehicle.model}
-          </span>
+          ) : (
+            <span className="truncate italic" style={{ color: '#8b8d96' }}>Sem veículo</span>
+          )}
         </div>
         <div className="flex items-center gap-1.5 min-w-0 leading-none" title={team.location}>
-          <MapPin className="w-3.5 h-3.5 flex-shrink-0" strokeWidth={1.75} style={{ color: '#8b8d96' }} />
+          {team.interno
+            ? <Building2 className="w-3.5 h-3.5 flex-shrink-0" strokeWidth={1.75} style={{ color: '#8b8d96' }} />
+            : <MapPin    className="w-3.5 h-3.5 flex-shrink-0" strokeWidth={1.75} style={{ color: '#8b8d96' }} />}
           <span className="truncate">{team.location}</span>
         </div>
         {team.tempoAtendimento && (

@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import {
   Ticket as TicketIcon,
   CheckCircle2,
@@ -9,6 +9,7 @@ import {
   Plus,
   Check,
   Users,
+  Loader2,
 } from 'lucide-react'
 
 import KpiCard            from "../../components/chamados/KpiCard"
@@ -19,7 +20,16 @@ import AssignModal        from "../../components/chamados/AssignModal"
 import NewTicketModal     from "../../components/chamados/NewTicketModal"
 import MapaChamadosModal  from "../../components/chamados/MapaChamadosModal"
 
-import { SEED_TEAMS, SEED_TICKETS, PRIORITY_META } from "./data"
+import { PRIORITY_META, STATUS_META } from "./data"
+import { INT_POR_PRIORIDADE, INT_POR_STATUS } from "./adapters"
+import {
+  useChamadosDIT, useAtualizarChamado, useAbrirChamado,
+  useAtenderChamado, useEncerrarAtendimento,
+} from "../../hooks/useChamados"
+import { useEquipesAtivas, useDespacharEquipe } from "../../hooks/useEquipes"
+import { useAuth } from "../../contexts/AuthContext"
+import { mensagemErro } from "../../api/erros"
+import EncerrarAtendimentoModal from "../../components/chamados/EncerrarAtendimentoModal"
 
 const C = {
   bg:        '#f7f7f4',
@@ -35,12 +45,16 @@ const C = {
   accentInk: '#2d2783',
 }
 
-export default function Chamado({
-  initialTeams   = SEED_TEAMS,
-  initialTickets = SEED_TICKETS,
-}) {
-  const [tickets, setTickets]           = useState(initialTickets)
-  const [teams, setTeams]               = useState(initialTeams)
+export default function Chamado() {
+  const { data: tickets = [], isLoading, isError, error } = useChamadosDIT()
+  const { data: teams = [] } = useEquipesAtivas()
+  const atualizar = useAtualizarChamado()
+  const abrir = useAbrirChamado()
+  const atender = useAtenderChamado()
+  const encerrarAtendimento = useEncerrarAtendimento()
+  const despachar = useDespacharEquipe()
+  const { user } = useAuth()
+
   const [query, setQuery]               = useState("")
   const [openTicket, setOpenTicket]     = useState(null)
   const [assignTicket, setAssignTicket] = useState(null)
@@ -48,13 +62,15 @@ export default function Chamado({
   const [mapaAberto, setMapaAberto]     = useState(false)
   const [toasts, setToasts]             = useState([])
   const [periodo, setPeriodo]           = useState('Hoje')
+  // troca de chamado pendente de confirmação { atual, destino }
+  const [trocaPendente, setTrocaPendente] = useState(null)
+  // chamado cujo atendimento o técnico está encerrando
+  const [encerrandoAtendimento, setEncerrandoAtendimento] = useState(null)
 
-  const kpi = {
-    abertosHoje: tickets.filter(t => t.date === "Hoje").length,
-    resolvHoje:  tickets.filter(t => t.date === "Hoje" && t.status === "resolvido").length,
-    urgentes:    tickets.filter(t => t.priority === "urgente" && t.status !== "resolvido").length,
-    naoConcluidos: tickets.filter(t => t.status !== "resolvido").length,
-  }
+  // "encerrado" = resolvido ou cancelado (saiu da fila)
+  const encerrado = (t) => t.statusReal === 'resolvido' || t.statusReal === 'cancelado'
+
+  const kpi = useMemo(() => calculaKpis(tickets, periodo, encerrado), [tickets, periodo])
 
   const pushToast = (msg) => {
     const id = Math.random()
@@ -62,45 +78,115 @@ export default function Chamado({
     setTimeout(() => setToasts(s => s.filter(t => t.id !== id)), 2600)
   }
 
-  const updateTicket = (next) => {
-    setTickets(s => s.map(t => t.code === next.code ? next : t))
-    setOpenTicket(next)
-    pushToast(`${next.code} · prioridade alterada para "${PRIORITY_META[next.priority].label}"`)
+
+  // Persiste prioridade/status. `patch` usa as chaves visuais; converte pros ints da API.
+  const updateTicket = (ticket, patch) => {
+    const body = {}
+    if (patch.priority) body.urgencia = INT_POR_PRIORIDADE[patch.priority]
+    if (patch.status) body.status_chamado = INT_POR_STATUS[patch.status]
+    if (Object.keys(body).length === 0) return
+
+    atualizar.mutate({ id: ticket.id, ...body }, {
+      onSuccess: () => {
+        if (patch.priority) {
+          pushToast(`#${ticket.code} · prioridade alterada para "${PRIORITY_META[patch.priority].label}"`)
+        }
+        if (patch.status) {
+          pushToast(`#${ticket.code} · status alterado`)
+        }
+        // mantém o modal aberto refletindo o novo valor
+        setOpenTicket(prev => (prev && prev.id === ticket.id ? { ...prev, ...patch } : prev))
+      },
+      onError: (e) => pushToast(mensagemErro(e, 'Não foi possível salvar a alteração.')),
+    })
   }
 
   const assignTeam = (team) => {
     const t = assignTicket
     if (!t) return
-    const next = { ...t, team: team.id, status: t.status === "aberto" ? "em_andamento" : t.status }
-    setTickets(s => s.map(x => x.code === t.code ? next : x))
-    setOpenTicket(prev => prev && prev.code === t.code ? next : prev)
+    // Despachar é o que de fato vincula: grava chamado_atual na equipe e abre o
+    // Atendimento. O status "Em andamento" vem junto, pelo próprio backend -
+    // só mudar o status deixaria o chamado sem equipe nenhuma.
+    despachar.mutate(
+      { id: team.id, chamadoId: t.id },
+      {
+        onSuccess: () => pushToast(`${team.name} atribuída ao #${t.code}`),
+        onError: (e) => pushToast(mensagemErro(e, 'Não foi possível atribuir a equipe.')),
+      }
+    )
     setAssignTicket(null)
-    pushToast(`${team.name} atribuída a ${t.code}`)
   }
 
   const createTicket = (form) => {
-    const num = 2853 + tickets.filter(t => /^28[5-9]/.test(t.code)).length
-    const next = {
-      code: String(num),
-      title: form.title,
-      client: form.client,                         // "Secretaria - Divisão"
-      address: form.address,
-      latitude: form.latitude,
-      longitude: form.longitude,
-      priority: form.priority,
-      status: "aberto",
-      openedAt: "agora",
-      team: null,
-      date: "Hoje",
-      usuario_solicitante: form.usuario_solicitante,
-      description: form.description,
-    }
-    setTickets(s => [next, ...s])
-    setNewTicket(false)
-    pushToast(`CH-${next.code} criado · aguardando atribuição`)
+    abrir.mutate(
+      {
+        titulo: form.title,
+        descricao: form.description || '',
+        unidade_id: form.unidade_id,
+        urgencia: INT_POR_PRIORIDADE[form.priority] ?? 0,
+        // o chamado fica no nome do servidor escolhido; created_by registra
+        // quem da TI digitou
+        solicitante_id: form.solicitante_id || undefined,
+        nome_solicitante: form.nome_solicitante || '',
+      },
+      {
+        onSuccess: (novo) => {
+          setNewTicket(false)
+          pushToast(`Chamado #${novo.id} criado · aguardando atribuição`)
+        },
+        onError: (e) => pushToast(mensagemErro(e, 'Erro ao criar o chamado.')),
+      }
+    )
   }
 
-  const equipesEmCampo = teams.filter(t => t.status !== "pausa").length
+  // ---- atendimento do técnico logado ----
+  // chamado que ele já está atendendo (só pode haver um)
+  const meuChamadoAtual = useMemo(() => {
+    if (!user?.tecnico_id) return null
+    return tickets.find((t) => t.equipeTecnicoIds?.includes(user.tecnico_id)) || null
+  }, [tickets, user])
+
+  const pedirAtendimento = (ticket) => {
+    // já está em outro chamado: confirma a troca e pergunta o status do atual
+    if (meuChamadoAtual && meuChamadoAtual.id !== ticket.id) {
+      setTrocaPendente({ atual: meuChamadoAtual, destino: ticket })
+      return
+    }
+    atender.mutate({ id: ticket.id }, {
+      onSuccess: () => pushToast(`Você assumiu o #${ticket.code}`),
+      onError: (e) => pushToast(mensagemErro(e, 'Não foi possível assumir o chamado.')),
+    })
+  }
+
+  const confirmarTroca = ({ status, observacoes }) => {
+    const { atual, destino } = trocaPendente
+    atender.mutate(
+      { id: destino.id, statusAnterior: INT_POR_STATUS[status], observacoes },
+      {
+        onSuccess: () => {
+          setTrocaPendente(null)
+          pushToast(`#${atual.code} ficou como "${STATUS_META[status].label}" · você está no #${destino.code}`)
+        },
+        onError: (e) => pushToast(mensagemErro(e, 'Não foi possível trocar de chamado.')),
+      }
+    )
+  }
+
+  const confirmarEncerramento = ({ status, observacoes }) => {
+    const alvo = encerrandoAtendimento
+    encerrarAtendimento.mutate(
+      { id: alvo.id, status: INT_POR_STATUS[status], observacoes },
+      {
+        onSuccess: () => {
+          setEncerrandoAtendimento(null)
+          pushToast(`Atendimento encerrado · #${alvo.code} ficou como "${STATUS_META[status].label}"`)
+        },
+        onError: (e) => pushToast(mensagemErro(e, 'Não foi possível encerrar o atendimento.')),
+      }
+    )
+  }
+
+  const equipesEmCampo = teams.filter(t => t.status === "em_atendimento").length
 
   return (
     <div className="min-h-full" style={{ backgroundColor: C.bg }}>
@@ -148,32 +234,33 @@ export default function Chamado({
         {/* KPIs */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <KpiCard
-            label="Chamados abertos hoje"
+            label={`Chamados abertos · ${periodo.toLowerCase()}`}
             Icon={AlertOctagon}
-            value={kpi.abertosHoje}
-            delta="-12% vs. ontem"
-            deltaDir="up"
+            value={kpi.abertos}
+            delta={kpi.abertosDelta}
+            // mais chamados abertos não é bom: sobe = vermelho
+            deltaDir={kpi.abertos > 0 && kpi.abertosDelta.startsWith('+') ? 'down' : 'neutro'}
           />
           <KpiCard
-            label="Resolvidos hoje"
+            label={`Resolvidos · ${periodo.toLowerCase()}`}
             Icon={CheckCircle2}
-            value={kpi.resolvHoje}
-            delta="+3 desde o turno da manhã"
-            deltaDir="up"
+            value={kpi.resolvidos}
+            delta={kpi.resolvidosDelta}
+            deltaDir={kpi.resolvidosDelta.startsWith('+') ? 'up' : 'neutro'}
           />
           <KpiCard
             label="Chamados não concluídos"
             Icon={TicketIcon}
             value={kpi.naoConcluidos}
-            delta={`${kpi.naoConcluidos} ainda em aberto !`}
-            deltaDir="down"
+            delta={kpi.naoConcluidosDetalhe}
+            deltaDir={kpi.naoConcluidos > 0 ? 'down' : 'up'}
           />
           <KpiCard
             label="Urgentes ativos"
             Icon={AlertTriangle}
             value={kpi.urgentes}
-            delta="Atenção imediata"
-            deltaDir="down"
+            delta={kpi.urgentesDetalhe}
+            deltaDir={kpi.urgentes > 0 ? 'down' : 'up'}
           />
         </div>
 
@@ -227,24 +314,62 @@ export default function Chamado({
             </button>
           </SectionHead>
 
-          <TicketsTable
-            tickets={tickets}
-            teams={teams}
-            query={query}
-            setQuery={setQuery}
-            onOpen={setOpenTicket}
-          />
+          {isLoading ? (
+            <EstadoLista texto="Carregando chamados…" spin />
+          ) : isError ? (
+            <EstadoLista
+              texto={
+                error?.status === 401 || error?.status === 403
+                  ? 'Sem permissão. Faça login no /admin (mesmo navegador) e recarregue.'
+                  : `Erro ao carregar chamados${error?.status ? ` (${error.status})` : ''}.`
+              }
+            />
+          ) : (
+            <TicketsTable
+              tickets={tickets}
+              teams={teams}
+              query={query}
+              setQuery={setQuery}
+              onOpen={setOpenTicket}
+              onUpdate={updateTicket}
+            />
+          )}
         </section>
       </div>
 
       {/* Modais */}
       {openTicket && (
         <TicketModal
-          ticket={openTicket}
+          ticket={tickets.find((t) => t.id === openTicket.id) || openTicket}
           teams={teams}
           onClose={() => setOpenTicket(null)}
           onUpdate={updateTicket}
           onAssign={(t) => setAssignTicket(t)}
+          onAtender={() => pedirAtendimento(openTicket)}
+          onEncerrarAtendimento={() => setEncerrandoAtendimento(openTicket)}
+        />
+      )}
+
+      {/* Trocar de chamado: decide o que fica no que ele está largando */}
+      {trocaPendente && (
+        <EncerrarAtendimentoModal
+          chamadoAtual={trocaPendente.atual}
+          destino={trocaPendente.destino}
+          onConfirmar={confirmarTroca}
+          onClose={() => setTrocaPendente(null)}
+          salvando={atender.isPending}
+          erro={atender.error ? mensagemErro(atender.error, '') : ''}
+        />
+      )}
+
+      {/* Encerrar o próprio atendimento (sair ≠ resolver) */}
+      {encerrandoAtendimento && (
+        <EncerrarAtendimentoModal
+          chamadoAtual={encerrandoAtendimento}
+          onConfirmar={confirmarEncerramento}
+          onClose={() => setEncerrandoAtendimento(null)}
+          salvando={encerrarAtendimento.isPending}
+          erro={encerrarAtendimento.error ? mensagemErro(encerrarAtendimento.error, '') : ''}
         />
       )}
       {assignTicket && (
@@ -285,6 +410,102 @@ export default function Chamado({
           </div>
         ))}
       </div>
+    </div>
+  )
+}
+
+// Janela do período selecionado + a MESMA janela deslocada pro período anterior
+// (hoje vs. ontem até esta hora; esta semana vs. a anterior até o mesmo ponto).
+// Tudo em cima de created_at real; nada estimado.
+const DIAS_POR_PERIODO = { Hoje: 1, Semana: 7, 'Mês': 30 }
+
+function janelas(periodo) {
+  const dias = DIAS_POR_PERIODO[periodo] || 1
+  const fim = new Date()
+  const inicio = new Date()
+  inicio.setHours(0, 0, 0, 0)
+  inicio.setDate(inicio.getDate() - (dias - 1))
+
+  const desloca = (d) => {
+    const x = new Date(d)
+    x.setDate(x.getDate() - dias)
+    return x
+  }
+  return { inicio, fim, inicioAnterior: desloca(inicio), fimAnterior: desloca(fim) }
+}
+
+function calculaKpis(tickets, periodo, encerrado) {
+  const { inicio, inicioAnterior, fimAnterior } = janelas(periodo)
+
+  const dentro = (t, de, ate) => {
+    if (!t.created_at) return false
+    const d = new Date(t.created_at)
+    return d >= de && d < ate
+  }
+  const agora = new Date()
+
+  const noPeriodo = tickets.filter((t) => dentro(t, inicio, agora))
+  const noAnterior = tickets.filter((t) => dentro(t, inicioAnterior, fimAnterior))
+
+  const resolvidosPeriodo = noPeriodo.filter((t) => t.statusReal === 'resolvido').length
+  const resolvidosAnterior = noAnterior.filter((t) => t.statusReal === 'resolvido').length
+
+  // pendências e urgentes são fotos do estado atual, não do período
+  const pendentes = tickets.filter((t) => !encerrado(t))
+  const urgentes = pendentes.filter((t) => t.priority === 'urgente')
+  const maisAntigo = pendentes.reduce((acc, t) => {
+    if (!t.created_at) return acc
+    const d = new Date(t.created_at)
+    return !acc || d < acc ? d : acc
+  }, null)
+
+  return {
+    abertos: noPeriodo.length,
+    abertosDelta: variacao(noPeriodo.length, noAnterior.length, periodo),
+    resolvidos: resolvidosPeriodo,
+    resolvidosDelta: variacao(resolvidosPeriodo, resolvidosAnterior, periodo),
+    naoConcluidos: pendentes.length,
+    naoConcluidosDetalhe: maisAntigo
+      ? `mais antigo há ${diasAtras(maisAntigo)}`
+      : 'nenhum pendente',
+    urgentes: urgentes.length,
+    urgentesDetalhe: urgentes.length === 0
+      ? 'nada crítico na fila'
+      : `${urgentes.filter((t) => !t.team).length} sem equipe`,
+  }
+}
+
+// "+3 vs. período anterior" / "sem comparação" quando não há histórico
+function variacao(atual, anterior, periodo) {
+  const rotulo =
+    periodo === 'Hoje' ? 'vs. ontem'
+      : periodo === 'Semana' ? 'vs. 7 dias anteriores'
+      : 'vs. 30 dias anteriores'
+  if (anterior === 0) {
+    return atual === 0 ? `nenhum ${rotulo}` : `sem base de comparação`
+  }
+  const dif = atual - anterior
+  const pct = Math.round((dif / anterior) * 100)
+  const sinal = dif > 0 ? '+' : ''
+  return `${sinal}${dif} (${sinal}${pct}%) ${rotulo}`
+}
+
+function diasAtras(data) {
+  const dias = Math.floor((Date.now() - data.getTime()) / 86400000)
+  if (dias === 0) return 'menos de 1 dia'
+  return dias === 1 ? '1 dia' : `${dias} dias`
+}
+
+function EstadoLista({ texto, spin }) {
+  return (
+    <div
+      className="flex flex-col items-center justify-center gap-3 py-16 rounded-lg"
+      style={{ backgroundColor: C.surface, border: `1px solid ${C.border}`, color: C.text3 }}
+    >
+      {spin
+        ? <Loader2 className="w-6 h-6 animate-spin" strokeWidth={1.75} />
+        : <AlertTriangle className="w-6 h-6" strokeWidth={1.75} />}
+      <span className="text-[13px] max-w-sm text-center">{texto}</span>
     </div>
   )
 }
