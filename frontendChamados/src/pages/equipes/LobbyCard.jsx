@@ -48,6 +48,9 @@ export default function LobbyCard({ lobby, livres = [], onEntrar, onSair, onSair
   const comecoDaEquipe = lobby.criado_em || '--'
   // pra ir a campo basta ter gente; o chamado é escolhido na hora de despachar
   const podeSair = tecnicos.length >= 1
+  // já foi a campo: Atendimento aponta pra ela com PROTECT, então não dá pra
+  // excluir — o caminho é encerrar
+  const temHistorico = (lobby.atendimentos?.length ?? 0) > 0
 
   return (
     <li
@@ -194,8 +197,14 @@ export default function LobbyCard({ lobby, livres = [], onEntrar, onSair, onSair
             style={{ color: '#b91c1c' }}
             onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#fee2e2')}
             onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+            title={
+              temHistorico
+                ? 'Esta equipe já atendeu: o histórico fica, ela sai da fila'
+                : 'Lobby que nunca atendeu: some sem deixar rastro'
+            }
           >
-            Desfazer equipe
+            {/* rótulo honesto: o que acontece é diferente conforme o histórico */}
+            {temHistorico ? 'Encerrar equipe' : 'Desfazer equipe'}
           </button>
         )}
 

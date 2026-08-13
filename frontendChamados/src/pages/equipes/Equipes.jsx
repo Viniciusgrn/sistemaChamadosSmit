@@ -105,7 +105,17 @@ export default function Equipes() {
   }
   const handleDesfazer = (equipe) => {
     setErroAcao('')
-    comErro(remover)(equipe.id)
+    // Equipe que já foi a campo tem Atendimento apontando pra ela com PROTECT:
+    // o DELETE é recusado pelo backend ("encerre em vez de excluir"). Histórico
+    // de atendimento não se apaga — se encerra. Só lobby que nunca atendeu
+    // pode sumir sem deixar rastro.
+    if (equipe.atendimentos?.length) {
+      // 'Turno acabou': neutro de propósito. 'Resolvido' finalizaria o chamado
+      // e 'Cancelado' afirmaria algo sobre o atendimento que ninguém disse.
+      comErro(encerrar)({ id: equipe.id, motivo: 2 })
+    } else {
+      comErro(remover)(equipe.id)
+    }
   }
 
   return (
