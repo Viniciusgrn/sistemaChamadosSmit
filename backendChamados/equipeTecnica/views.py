@@ -125,7 +125,7 @@ class EquipeViewSet(AuditMixin, viewsets.ModelViewSet):
         if self._eh_ele_mesmo(user, tecnico) or coordena(user):
             return
         raise PermissionDenied(
-            f'Você só pode {frase}. Escalar outro técnico é com o despachante.'
+            f'Você só pode {frase}. Escalar outro técnico é com o administrativo.'
         )
 
     def perform_create(self, serializer):
@@ -221,13 +221,13 @@ class EquipeViewSet(AuditMixin, viewsets.ModelViewSet):
             if tecnico.cargo in CARGOS_SUPERVISIONADOS:
                 if not (coordena(request.user) or self._responde_pela_equipe(request.user, equipe)):
                     raise PermissionDenied(
-                        'Só um técnico da própria equipe (ou o despachante) pode '
+                        'Só um técnico da própria equipe (ou o administrativo) pode '
                         'tirar estagiário ou aprendiz dela.'
                     )
             elif not coordena(request.user):
                 raise PermissionDenied(
                     'Você só pode tirar você mesmo da equipe. '
-                    'Escalar outro técnico é com o despachante.'
+                    'Escalar outro técnico é com o administrativo.'
                 )
 
         participacao = equipe.participacoes_abertas.filter(tecnico=tecnico).first()

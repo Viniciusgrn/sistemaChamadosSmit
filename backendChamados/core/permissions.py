@@ -40,13 +40,13 @@ class CadastroDeTecnicoSoCoordenacao(permissions.BasePermission):
     Só a coordenação mexe no cadastro de técnico.
 
     Não é questão de organização de tela: entre os campos editáveis está a
-    responsabilidade "Despachante" (Tecnico.RESPONSABILIDADE_CHOICES = 3), e
+    responsabilidade "Administrativo" (Tecnico.RESPONSABILIDADE_CHOICES = 3), e
     quem a possui passa em `coordena()` — o que muda o perfil operacional para
     gestão. Um técnico com acesso de escrita aqui se promoveria sozinho.
 
     Ler continua liberado: a lista de técnicos é usada para montar equipe.
     """
-    message = 'Só o despachante ou a chefia altera o cadastro de técnicos.'
+    message = 'Só o administrativo ou a chefia altera o cadastro de técnicos.'
 
     def has_permission(self, request, view):
         if request.method in METODOS_LEITURA:

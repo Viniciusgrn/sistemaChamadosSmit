@@ -31,7 +31,7 @@ export default function Tecnicos() {
   const { data: todos = [], isLoading, isError, error } = useTecnicos()
   const { user } = useAuth()
   // Cadastro de técnico é da coordenação: entre os campos está a
-  // responsabilidade "Despachante", que muda o perfil de quem a recebe. Quem
+  // responsabilidade "Administrativo", que muda o perfil de quem a recebe. Quem
   // manda é o backend (core.permissions.CadastroDeTecnicoSoCoordenacao);
   // esconder aqui só evita oferecer um botão que devolveria 403.
   const podeEditarCadastro = !!(

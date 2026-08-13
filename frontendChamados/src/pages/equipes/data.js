@@ -15,7 +15,7 @@ export const RESP_META = {
   [RESP.REDES]:       { label: 'Redes',       cor: '#0891b2' },
   [RESP.INFRA]:       { label: 'Infra',       cor: '#7c3aed' },
   [RESP.SUPORTE]:     { label: 'Suporte',     cor: '#16a34a' },
-  [RESP.DESPACHANTE]: { label: 'Despachante', cor: '#f97316' },
+  [RESP.DESPACHANTE]: { label: 'Administrativo', cor: '#f97316' },
   [RESP.HELPDESK]:    { label: 'Help desk',   cor: '#dc2626' },
 }
 

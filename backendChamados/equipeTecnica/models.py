@@ -11,7 +11,10 @@ class Tecnico(BaseModel):
         (0, "Redes"),
         (1, "Infra"),
         (2, "Suporte"),
-        (3, "Despachante"),
+        # O valor 3 é o que está gravado no banco e o que core.papeis usa para
+        # reconhecer quem coordena a fila. Só o rótulo mudou de "Despachante"
+        # para "Administrativo" — não mexa no número.
+        (3, "Administrativo"),
         (4, "Help desk"),
     ]
 

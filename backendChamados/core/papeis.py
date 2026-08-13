@@ -56,7 +56,7 @@ PERFIL_SOLICITANTE = 'solicitante'
 
 
 def eh_despachante(user):
-    """Técnico com a responsabilidade de despachante (coordena a fila)."""
+    """Técnico com a responsabilidade de Administrativo (coordena a fila)."""
     tecnico = getattr(user, 'tecnico', None)
     if tecnico is None:
         return False
@@ -74,7 +74,7 @@ def eh_chefe(user):
 
 
 def coordena(user):
-    """Despachante, chefe de divisão ou secretário — fica no sistema completo."""
+    """Administrativo, chefe de divisão ou secretário — fica no sistema completo."""
     return bool(
         user.is_superuser or eh_despachante(user) or eh_secretario(user) or eh_chefe(user)
     )
@@ -83,7 +83,7 @@ def coordena(user):
 def eh_aprendiz(user):
     """
     Cargo supervisionado: entra em equipe junto de um técnico, mas não assume
-    chamado sozinho. Coordenar (despachante/chefe/secretário) tira daqui.
+    chamado sozinho. Coordenar (administrativo/chefe/secretário) tira daqui.
     """
     tecnico = getattr(user, 'tecnico', None)
     if tecnico is None or coordena(user):
