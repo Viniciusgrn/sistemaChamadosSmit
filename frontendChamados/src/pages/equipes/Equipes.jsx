@@ -63,10 +63,10 @@ export default function Equipes() {
     return tecnicos.filter((t) => t.disponivel && !ocupados.has(t.id))
   }, [tecnicos, lobbies, ativas])
 
-  // Escalar terceiro é do despachante. Quem não coordena só se auto-atribui,
+  // Escalar terceiro é do administrativo. Quem não coordena só se auto-atribui,
   // então a lista de escolha mostra só ele — o backend recusa o resto de todo
   // jeito (equipeTecnica/views._garante_pode_mexer_em).
-  const podeEscalarOutros = !!(user?.eh_despachante || user?.eh_chefe || user?.eh_secretario || user?.is_superuser)
+  const podeEscalarOutros = !!(user?.administrativo || user?.eh_chefe || user?.eh_secretario || user?.is_superuser)
   const livres = useMemo(
     () => (podeEscalarOutros ? todosLivres : todosLivres.filter((t) => t.id === user?.tecnico_id)),
     [todosLivres, podeEscalarOutros, user]

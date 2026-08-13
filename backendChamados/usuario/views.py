@@ -34,7 +34,8 @@ def payload_sessao(user):
         'tecnico_id': user.tecnico.id if eh_tecnico else None,
         'eh_secretario': eh_secretario,
         'eh_chefe': eh_chefe,
-        'eh_despachante': papeis.eh_despachante(user),
+        # quem tem a responsabilidade 'Administrativo' coordena a fila
+        'administrativo': papeis.eh_administrativo(user),
         # 'gestao' | 'tecnico' | 'aprendiz' | 'solicitante' — decide qual
         # versão do sistema o front monta (menu, rotas e layout)
         'perfil': papeis.perfil_operacional(user),

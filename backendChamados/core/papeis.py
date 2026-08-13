@@ -45,7 +45,7 @@ def opera_sistema(user):
 # ---------------------------------------------------------------------------
 
 # Tecnico.RESPONSABILIDADE_CHOICES
-RESP_DESPACHANTE = 3
+RESP_ADMINISTRATIVO = 3
 # Tecnico.CARGO_CHOICES — cargos supervisionados não atendem sozinhos
 CARGOS_SUPERVISIONADOS = (1, 2)   # Estagiário, Jovem aprendiz
 
@@ -55,13 +55,13 @@ PERFIL_APRENDIZ = 'aprendiz'      # versão de campo, só acompanha
 PERFIL_SOLICITANTE = 'solicitante'
 
 
-def eh_despachante(user):
+def eh_administrativo(user):
     """Técnico com a responsabilidade de Administrativo (coordena a fila)."""
     tecnico = getattr(user, 'tecnico', None)
     if tecnico is None:
         return False
     return tecnico.responsabilidades_set.filter(
-        responsabilidade=RESP_DESPACHANTE
+        responsabilidade=RESP_ADMINISTRATIVO
     ).exists()
 
 
@@ -76,7 +76,7 @@ def eh_chefe(user):
 def coordena(user):
     """Administrativo, chefe de divisão ou secretário — fica no sistema completo."""
     return bool(
-        user.is_superuser or eh_despachante(user) or eh_secretario(user) or eh_chefe(user)
+        user.is_superuser or eh_administrativo(user) or eh_secretario(user) or eh_chefe(user)
     )
 
 

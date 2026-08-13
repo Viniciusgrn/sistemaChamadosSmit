@@ -8,7 +8,7 @@ export const RESP = {
   REDES:       0,
   INFRA:       1,
   SUPORTE:     2,
-  DESPACHANTE: 3,
+  ADMINISTRATIVO: 3,
   HELPDESK:    4,
 }
 
@@ -16,7 +16,7 @@ export const RESP_META = {
   [RESP.REDES]:       { label: 'Redes',       cor: '#0891b2' },
   [RESP.INFRA]:       { label: 'Infra',       cor: '#7c3aed' },
   [RESP.SUPORTE]:     { label: 'Suporte',     cor: '#16a34a' },
-  [RESP.DESPACHANTE]: { label: 'Administrativo', cor: '#f97316' },
+  [RESP.ADMINISTRATIVO]: { label: 'Administrativo', cor: '#f97316' },
   [RESP.HELPDESK]:    { label: 'Help desk',   cor: '#dc2626' },
 }
 

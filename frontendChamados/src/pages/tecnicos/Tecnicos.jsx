@@ -35,7 +35,7 @@ export default function Tecnicos() {
   // manda é o backend (core.permissions.CadastroDeTecnicoSoCoordenacao);
   // esconder aqui só evita oferecer um botão que devolveria 403.
   const podeEditarCadastro = !!(
-    user?.eh_despachante || user?.eh_chefe || user?.eh_secretario || user?.is_superuser
+    user?.administrativo || user?.eh_chefe || user?.eh_secretario || user?.is_superuser
   )
 
   const [busca, setBusca] = useState('')
