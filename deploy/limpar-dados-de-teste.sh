@@ -29,14 +29,28 @@ if [ -z "$CID_BACK" ] || [ -z "$CID_DB" ]; then
   exit 1
 fi
 
-echo "=== ANTES ==="
+# Os dois grupos aparecem SEPARADOS e rotulados de propósito: numa operação
+# destrutiva, uma lista única de modelos deixa a dúvida sobre o que cai junto.
 docker exec -i "$CID_BACK" python manage.py shell -c "
 from django.apps import apps
-for r in ['chamado.Chamado','equipeTecnica.Atendimento','equipeTecnica.ParticipacaoEquipe',
-          'equipeTecnica.Equipe','manutencao.Manutencao','terceirizada.ChamadoTerceirizada',
-          'equipeTecnica.Tecnico','equipeTecnica.ResponsabilidadeTecnico']:
-    a,n = r.split('.')
-    print(f'  {r:42} {apps.get_model(a,n).objects.count():>5}')
+
+def bloco(titulo, rotulos):
+    print(f'  {titulo}')
+    for r in rotulos:
+        a,n = r.split('.')
+        print(f'    {r:42} {apps.get_model(a,n).objects.count():>5}')
+    print('  .')
+
+bloco('>>> SERA APAGADO', [
+    'chamado.Chamado', 'equipeTecnica.Atendimento', 'equipeTecnica.ParticipacaoEquipe',
+    'equipeTecnica.Equipe', 'manutencao.Manutencao', 'terceirizada.ChamadoTerceirizada',
+])
+bloco('>>> SERA MANTIDO (nao e tocado)', [
+    'equipeTecnica.Tecnico', 'equipeTecnica.ResponsabilidadeTecnico',
+    'usuario.Usuario', 'unidade.Unidade', 'ramal.Ramal',
+    'automovel.Automovel', 'automovel.AgendaAutomovel',
+    'equipamento.Equipamento', 'terceirizada.EmpresaTerceirizada',
+])
 " 2>/dev/null | grep -E '^\s{2}\S'
 
 if [ "$EXECUTAR" -ne 1 ]; then
