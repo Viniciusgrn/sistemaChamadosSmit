@@ -67,6 +67,43 @@ echo "==> Importando $DUMP"
 gunzip -c "$DUMP" | docker exec -i "$CID_DB" \
   mysql -u root -p"$ROOT_PASS" --default-character-set=utf8mb4 "$DB_NAME"
 
+# ---------------------------------------------------------------------------
+# Maiúsculas nos nomes de tabela.
+#
+# O MySQL do Windows roda com lower_case_table_names=1 e grava TODO nome de
+# tabela em minúsculas; o do Linux é sensível a maiúsculas. Como o app_label
+# 'equipeTecnica' tem T maiúsculo, o Django procura 'equipeTecnica_tecnico' e
+# encontra 'equipetecnica_tecnico' — resultado: "Table doesn't exist" só nesse
+# app, com o resto do banco aparentemente perfeito.
+# ---------------------------------------------------------------------------
+echo "==> Conferindo maiúsculas dos nomes de tabela"
+docker exec -i "$CID_DB" mysql -u root -p"$ROOT_PASS" "$DB_NAME" 2>/dev/null <<'SQL' || true
+SET @lc := @@lower_case_table_names;
+SELECT IF(@lc = 0, 'banco sensivel a maiusculas - renomeando se preciso',
+                   'banco insensivel a maiusculas - nada a fazer') AS status;
+SQL
+
+for par in \
+  "equipetecnica_tecnico:equipeTecnica_tecnico" \
+  "equipetecnica_equipe:equipeTecnica_equipe" \
+  "equipetecnica_atendimento:equipeTecnica_atendimento" \
+  "equipetecnica_participacaoequipe:equipeTecnica_participacaoequipe" \
+  "equipetecnica_responsabilidadetecnico:equipeTecnica_responsabilidadetecnico"
+do
+  origem="${par%%:*}"; destino="${par##*:}"
+  # só renomeia se a minúscula existir E a com maiúscula não
+  docker exec -i "$CID_DB" mysql -u root -p"$ROOT_PASS" "$DB_NAME" 2>/dev/null <<SQL || true
+SET @tem_origem := (SELECT COUNT(*) FROM information_schema.tables
+                    WHERE table_schema = '$DB_NAME' AND table_name = '$origem' COLLATE utf8mb4_bin);
+SET @tem_destino := (SELECT COUNT(*) FROM information_schema.tables
+                     WHERE table_schema = '$DB_NAME' AND table_name = '$destino' COLLATE utf8mb4_bin);
+SET @sql := IF(@tem_origem = 1 AND @tem_destino = 0,
+               'RENAME TABLE \`$origem\` TO \`$destino\`',
+               'DO 0');
+PREPARE st FROM @sql; EXECUTE st; DEALLOCATE PREPARE st;
+SQL
+done
+
 echo "==> Subindo o backend"
 subir_backend
 sleep 15   # o entrypoint espera o banco e roda migrate antes de servir
@@ -97,19 +134,30 @@ from django.apps import apps
 apps_locais = ['usuario','unidade','chamado','equipeTecnica','automovel',
                'equipamento','manutencao','terceirizada','ramal','core']
 total = 0
+falhas = []
 for nome in apps_locais:
     try: cfg = apps.get_app_config(nome)
     except LookupError: continue
     linhas = []
     for M in cfg.get_models():
-        try: n = M.objects.count()
-        except Exception: continue
+        # Contar NÃO pode falhar em silêncio: foi assim que uma tabela ausente
+        # passou despercebida, com o total fechando 67 registros a menos.
+        try:
+            n = M.objects.count()
+        except Exception as erro:
+            falhas.append((M._meta.label, str(erro)[:80]))
+            continue
         total += n
         linhas.append((M._meta.label, n))
-    if linhas:
-        for label, n in sorted(linhas, key=lambda x: -x[1]):
-            print(f'  {label:42} {n:>6}')
+    for label, n in sorted(linhas, key=lambda x: -x[1]):
+        print(f'  {label:42} {n:>6}')
 print(f'  {\"TOTAL\":42} {total:>6}')
+if falhas:
+    print()
+    print('  !! MODELOS QUE NAO PUDERAM SER CONTADOS:')
+    for label, erro in falhas:
+        print(f'     {label}: {erro}')
+    print('  !! A IMPORTACAO ESTA INCOMPLETA - nao trate como concluida.')
 " 2>/dev/null | grep -E '^\s{2}\S'
 
 echo
