@@ -193,17 +193,18 @@ export default function Sidebar() {
               className="flex-shrink-0 w-8 h-8 rounded-md flex items-center justify-center"
               style={{ backgroundColor: C.accentBg }}
             >
-              <span className="text-sm font-medium" style={{ color: C.accent }}>
-                <img src="../../public/brasaoBraganca.png" alt="brasão de Bragança Paulista" />
-              </span>
+              {/* caminho a partir da raiz: o que está em public/ é servido em
+                  /, e caminho relativo aqui quebraria conforme a rota aberta */}
+              <img
+                src="/brasaoBraganca.png"
+                alt="Brasão de Bragança Paulista"
+                className="w-6 h-6 object-contain"
+              />
             </div>
             {!effectiveCollapsed && (
               <div className="overflow-hidden min-w-0">
                 <div className="text-[13px] font-medium tracking-tight text-slate-100 truncate">
                   Sistema de Chamados
-                </div>
-                <div className="text-[10px] tracking-wider text-slate-500 mt-0.5 uppercase">
-                  Beta
                 </div>
               </div>
             )}

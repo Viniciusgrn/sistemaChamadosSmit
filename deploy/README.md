@@ -89,8 +89,23 @@ domínio e o IP deste ambiente.
 docker compose up -d --build
 ```
 
-O `entrypoint.sh` já roda as migrações e o `collectstatic` sozinho. Falta só o
-primeiro usuário:
+O `entrypoint.sh` já roda as migrações e o `collectstatic` sozinho.
+
+O banco nasce vazio — sem nenhum usuário, ninguém consegue entrar ainda. Isso é
+esperado; confirme que a stack está de pé pelo HTTP, não pelo login:
+
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" \
+  -H 'Host: os.bragancapta.sp.gov.br' http://127.0.0.1:8003/   # espera-se 200
+```
+
+**Migrando de um banco existente** (o caso desta implantação): os usuários vêm
+no dump, com as senhas atuais. Vá direto para "Levar o banco atual para a VPS"
+e **não** crie superusuário — o import recria o schema e apagaria o que você
+criasse agora.
+
+**Instalação limpa**, sem dump: aí sim é preciso um primeiro usuário, senão não
+há como entrar para criar os demais.
 
 ```bash
 docker compose exec backend python manage.py createsuperuser

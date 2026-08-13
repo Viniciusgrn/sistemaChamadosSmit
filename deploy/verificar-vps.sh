@@ -20,19 +20,37 @@ echo "  $(. /etc/os-release 2>/dev/null && echo "$PRETTY_NAME")"
 echo "  CPU: $(nproc) núcleos | RAM: $(free -h | awk '/^Mem:/ {print $2}') | Disco livre: $(df -h / | awk 'NR==2 {print $4}')"
 echo "  Fuso atual: $(timedatectl show -p Timezone --value 2>/dev/null || cat /etc/timezone 2>/dev/null)"
 
-titulo "Portas 80 e 443 (é aqui que o conflito dói)"
+# Porta que a stack realmente pede. As 80/443 NÃO são nossas: quem manda nelas
+# é o nginx do host, e é assim que tem que ser.
+PORTA_STACK="${HTTP_PORT:-8003}"
+
+titulo "Porta 80/443 — quem é o dono (esperado: nginx do host)"
 if command -v ss >/dev/null 2>&1; then
   for porta in 80 443; do
     QUEM=$(ss -lntp "sport = :$porta" 2>/dev/null | awk 'NR>1 {print $NF}' | head -1)
-    if [ -n "$QUEM" ]; then
-      grave "porta $porta JÁ EM USO por: $QUEM"
-      CONFLITOS=$((CONFLITOS + 1))
+    if [ -z "$QUEM" ]; then
+      alerta "porta $porta LIVRE — nenhum nginx de host respondendo?"
+      alerta "  o desenho aqui pressupõe um nginx no host terminando o TLS"
+    elif echo "$QUEM" | grep -q 'nginx'; then
+      ok "porta $porta com o nginx do host — correto, é ele quem expõe o sistema"
     else
-      ok "porta $porta livre"
+      alerta "porta $porta ocupada por algo que NÃO é nginx: $QUEM"
+      alerta "  confira se o proxy da máquina é outro (traefik/caddy)"
     fi
   done
 else
   alerta "'ss' indisponível — verifique manualmente com: netstat -lntp"
+fi
+
+titulo "Porta $PORTA_STACK — esta sim é a que a stack precisa"
+if command -v ss >/dev/null 2>&1; then
+  QUEM=$(ss -lntp "sport = :$PORTA_STACK" 2>/dev/null | awk 'NR>1 {print $NF}' | head -1)
+  if [ -n "$QUEM" ]; then
+    grave "porta $PORTA_STACK OCUPADA por: $QUEM"
+    CONFLITOS=$((CONFLITOS + 1))
+  else
+    ok "porta $PORTA_STACK livre"
+  fi
 fi
 
 titulo "Docker"
@@ -92,13 +110,15 @@ fi
 
 titulo "Veredito"
 if [ "$CONFLITOS" -gt 0 ]; then
-  grave "$CONFLITOS conflito(s) de porta. NÃO suba com 80/443 direto."
+  grave "A porta $PORTA_STACK já está em uso."
   echo
-  echo "  Esperado nesta VPS: o nginx do host é o dono da 80/443."
-  echo "  A stack já está configurada para NÃO disputar: sobe em"
-  echo "  127.0.0.1:\${HTTP_PORT:-8003} e o host faz proxy_pass"
-  echo "  (deploy/nginx/host-chamados.conf)."
+  echo "  Escolha outra livre e ponha no .env:   HTTP_PORT=8004"
+  echo "  Ajuste o mesmo número no proxy_pass de"
+  echo "  /etc/nginx/sites-available/os.bragancapta.sp.gov.br"
 else
-  ok "Nenhum conflito de porta encontrado."
+  ok "Sem conflito: a stack pode subir em 127.0.0.1:$PORTA_STACK."
+  echo
+  echo "  Lembrete: 80 e 443 continuam sendo do nginx do host, que faz"
+  echo "  proxy_pass pra cá. Isso é o desenho, não um problema."
 fi
 echo
