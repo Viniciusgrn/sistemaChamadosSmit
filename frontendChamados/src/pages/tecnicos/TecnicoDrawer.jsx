@@ -193,16 +193,20 @@ export default function TecnicoDrawer({ tecnico, onClose, onEditar }) {
           className="flex-shrink-0 px-5 py-3 flex items-center justify-end gap-2"
           style={{ backgroundColor: C.surface2, borderTop: `1px solid ${C.divider}` }}
         >
-          <button
-            onClick={() => onEditar?.(tecnico)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium transition-colors"
-            style={{ backgroundColor: C.accent, color: '#fff' }}
-            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = C.accentInk)}
-            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = C.accent)}
-          >
-            <Pencil className="w-3.5 h-3.5" strokeWidth={1.75} />
-            Editar técnico
-          </button>
+          {/* sem onEditar o drawer é só consulta: quem não coordena não edita
+              cadastro de técnico (core.permissions devolveria 403) */}
+          {onEditar && (
+            <button
+              onClick={() => onEditar(tecnico)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium transition-colors"
+              style={{ backgroundColor: C.accent, color: '#fff' }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = C.accentInk)}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = C.accent)}
+            >
+              <Pencil className="w-3.5 h-3.5" strokeWidth={1.75} />
+              Editar técnico
+            </button>
+          )}
         </div>
       </aside>
     </>

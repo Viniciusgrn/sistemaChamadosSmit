@@ -1,5 +1,5 @@
 from django.utils import timezone
-from rest_framework import viewsets
+from rest_framework import permissions, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError, PermissionDenied
 from rest_framework.response import Response
@@ -7,6 +7,7 @@ from rest_framework.response import Response
 from chamado.models import Chamado
 from core.mixins import AuditMixin
 from core.papeis import eh_aprendiz, coordena, CARGOS_SUPERVISIONADOS
+from core.permissions import AprendizSomenteLeitura, CadastroDeTecnicoSoCoordenacao
 from core.tempo import intervalo_do_dia
 from .models import Tecnico, Equipe, Atendimento, ParticipacaoEquipe
 from .serializers import TecnicoSerializer, EquipeSerializer, AtendimentoSerializer
@@ -20,6 +21,13 @@ class TecnicoViewSet(AuditMixin, viewsets.ModelViewSet):
         .order_by('usuario__nome_completo')
     )
     serializer_class = TecnicoSerializer
+    # Declarar aqui SUBSTITUI o DEFAULT_PERMISSION_CLASSES do settings, então as
+    # duas padrão precisam ser repetidas — senão a rota ficaria aberta.
+    permission_classes = [
+        permissions.IsAuthenticated,
+        AprendizSomenteLeitura,
+        CadastroDeTecnicoSoCoordenacao,
+    ]
 
     def get_queryset(self):
         qs = super().get_queryset()

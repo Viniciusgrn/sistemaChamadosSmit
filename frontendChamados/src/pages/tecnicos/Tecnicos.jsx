@@ -6,6 +6,7 @@ import TecnicoDrawer from './TecnicoDrawer'
 import TecnicoModal from './TecnicoModal'
 import { RESP_META, STATUS_META, getResumo } from './data'
 import { useTecnicos } from '../../hooks/useTecnicos'
+import { useAuth } from '../../contexts/AuthContext'
 
 const C = {
   bg:        '#f7f7f4',
@@ -28,6 +29,14 @@ const STATUS_FILTROS = [
 
 export default function Tecnicos() {
   const { data: todos = [], isLoading, isError, error } = useTecnicos()
+  const { user } = useAuth()
+  // Cadastro de técnico é da coordenação: entre os campos está a
+  // responsabilidade "Despachante", que muda o perfil de quem a recebe. Quem
+  // manda é o backend (core.permissions.CadastroDeTecnicoSoCoordenacao);
+  // esconder aqui só evita oferecer um botão que devolveria 403.
+  const podeEditarCadastro = !!(
+    user?.eh_despachante || user?.eh_chefe || user?.eh_secretario || user?.is_superuser
+  )
 
   const [busca, setBusca] = useState('')
   const [filtroResp, setFiltroResp] = useState(null)
@@ -70,16 +79,18 @@ export default function Tecnicos() {
             </div>
           </div>
 
-          <button
-            onClick={() => setEditando(null)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium transition-colors"
-            style={{ backgroundColor: C.accent, color: '#fff' }}
-            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = C.accentInk)}
-            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = C.accent)}
-          >
-            <Plus className="w-3.5 h-3.5" strokeWidth={2} />
-            Novo técnico
-          </button>
+          {podeEditarCadastro && (
+            <button
+              onClick={() => setEditando(null)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium transition-colors"
+              style={{ backgroundColor: C.accent, color: '#fff' }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = C.accentInk)}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = C.accent)}
+            >
+              <Plus className="w-3.5 h-3.5" strokeWidth={2} />
+              Novo técnico
+            </button>
+          )}
         </div>
 
         {/* Filtros */}
@@ -181,7 +192,12 @@ export default function Tecnicos() {
         <TecnicoDrawer
           tecnico={selecionado}
           onClose={() => setSelecionado(null)}
-          onEditar={(t) => { setSelecionado(null); setEditando(t) }}
+          // sem permissão, o drawer vira só consulta — sem botão de editar
+          onEditar={
+            podeEditarCadastro
+              ? (t) => { setSelecionado(null); setEditando(t) }
+              : undefined
+          }
         />
       )}
 
