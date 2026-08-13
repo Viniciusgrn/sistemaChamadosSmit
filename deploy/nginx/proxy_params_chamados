@@ -1,10 +1,13 @@
 # Cabeçalhos que o Django precisa pra saber quem é o cliente de verdade.
-# X-Forwarded-Proto alimenta o SECURE_PROXY_SSL_HEADER do settings: sem ele o
-# Django acha que tudo é HTTP e monta URLs absolutas erradas atrás do TLS.
+#
+# $esquema_original vem do map em default.conf: é o X-Forwarded-Proto que o
+# nginx do host mandou (https), não o $scheme desta camada (http). É ele que
+# alimenta o SECURE_PROXY_SSL_HEADER do settings.py — sem isso, cookie 'secure'
+# nunca é aceito e o login não fecha.
 proxy_set_header Host              $host;
 proxy_set_header X-Real-IP         $remote_addr;
 proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
-proxy_set_header X-Forwarded-Proto $scheme;
+proxy_set_header X-Forwarded-Proto $esquema_original;
 proxy_redirect off;
 
 proxy_connect_timeout 10s;

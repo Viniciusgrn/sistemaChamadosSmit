@@ -1,14 +1,24 @@
 # Deploy na VPS
 
 Três containers: **nginx** (SPA + proxy), **gunicorn/Django**, **MySQL**.
-Só o nginx publica porta. Banco e Django ficam na rede interna do compose.
+
+Esta VPS **já hospeda outros sistemas em produção**. O desenho segue o padrão
+que já existe nela (o mesmo do `sistemadeconcursos` e do `mangacutter`): o
+nginx do host é dono da 80/443 e do TLS, e cada aplicação fica num container
+preso ao **loopback**.
 
 ```
-navegador → :80 nginx ─┬─ /            → SPA (arquivos estáticos do Vite)
-                       ├─ /api/, /admin/ → gunicorn:8000
-                       ├─ /static/      → volume do collectstatic
-                       └─ /media/       → volume dos uploads
+internet → nginx do HOST :443 (TLS, certbot)
+              │  proxy_pass
+              ↓
+        127.0.0.1:8003  nginx do container ─┬─ /              → SPA (Vite)
+                                            ├─ /api/, /admin/ → gunicorn:8000
+                                            ├─ /static/       → collectstatic
+                                            └─ /media/        → uploads
 ```
+
+Nada desta stack publica porta pública: **o MySQL e o gunicorn não são
+alcançáveis de fora**, só pela rede interna do compose.
 
 Front e API saem da **mesma origem**. É isso que faz o cookie de sessão do
 Django funcionar sem CORS — em produção a lista de CORS fica vazia de propósito.
@@ -23,9 +33,10 @@ Django funcionar sem CORS — em produção a lista de CORS fica vazia de propó
 | `backendChamados/entrypoint.sh` | espera o banco, roda `migrate` e `collectstatic` |
 | `backendChamados/requirements.txt` | versões congeladas do que já estava instalado |
 | `frontendChamados/Dockerfile` | build do Vite → nginx |
-| `deploy/nginx/default.conf` | rotas do nginx (bind mount: editar não exige rebuild) |
-| `deploy/nginx/default-ssl.conf` | mesma coisa, já com TLS — trocar depois do certbot |
+| `deploy/nginx/default.conf` | nginx DE DENTRO do container (SPA + rotas) |
+| `deploy/nginx/host-chamados.conf` | site pro nginx DO HOST — é o que expõe o sistema |
 | `deploy/nginx/proxy_params_chamados` | cabeçalhos de proxy pro Django |
+| `deploy/verificar-vps.sh` | diagnóstico read-only: o que já roda na VPS e o que conflita |
 | `deploy/provisionar-vps.sh` | prepara a máquina: Docker, firewall, fuso (swap só se a RAM for baixa) |
 | `backendChamados/gunicorn.conf.py` | workers/threads — é aqui que mora a capacidade |
 | `backendChamados/healthcheck.py` | sonda do `HEALTHCHECK`: o Django ainda responde? |
@@ -189,39 +200,57 @@ Backup do banco (o volume `db_data` guarda os dados; isto gera o dump):
 docker compose exec db mysqldump -u root -p"$DB_ROOT_PASSWORD" sistema_chamados > backup-$(date +%F).sql
 ```
 
-## HTTPS
+## Publicar no nginx do host
 
-O compose sobe em HTTP — proposital, para você validar o sistema pelo IP
-(`http://2.24.89.242`) antes de mexer no DNS.
+A stack sozinha só responde em `http://127.0.0.1:8003`, de dentro da VPS. Quem
+a expõe é o nginx do host, igual aos outros sistemas:
+
+```bash
+sudo cp deploy/nginx/host-chamados.conf \
+        /etc/nginx/sites-available/os.bragancapta.sp.gov.br
+sudo ln -s /etc/nginx/sites-available/os.bragancapta.sp.gov.br \
+           /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+`nginx -t` antes do reload não é formalidade: um erro de sintaxe aqui derruba
+**todos** os sites da máquina, não só este.
+
+Teste local antes de mexer em DNS:
+
+```bash
+curl -H 'Host: os.bragancapta.sp.gov.br' -I http://127.0.0.1/
+```
+
+## HTTPS
 
 ### Pré-requisito: apontar o DNS
 
 Hoje `os.bragancapta.sp.gov.br` resolve para `162.241.60.59` (a hospedagem
-antiga). O Let's Encrypt valida o domínio acessando `http://os.bragancapta...`
-pela internet — enquanto o registro A não apontar para `2.24.89.242`, a emissão
-falha com "connection refused" ou entrega a validação ao servidor errado.
-
-Confirme antes de tentar (deve responder `2.24.89.242`):
+antiga). O Let's Encrypt valida acessando o domínio pela internet — enquanto o
+registro A não apontar para `2.24.89.242`, a emissão falha.
 
 ```bash
-dig +short os.bragancapta.sp.gov.br
+dig +short os.bragancapta.sp.gov.br      # tem que responder 2.24.89.242
 ```
-
-Propagação costuma levar de minutos a algumas horas.
 
 ### Emitir o certificado
 
+Pelo certbot que **já existe no host** — o mesmo que emitiu os certificados de
+`mangacutter.com`, `concursos.vgrn.cloud` e companhia. Não instale um segundo:
+
 ```bash
-docker compose run --rm certbot certonly --webroot -w /var/www/certbot \
-  -d os.bragancapta.sp.gov.br --agree-tos -m <seu-email> --no-eff-email
+sudo certbot --nginx -d os.bragancapta.sp.gov.br
 ```
 
-### Ativar
+Ele reescreve o arquivo do site acrescentando o bloco 443 e o redirecionamento,
+e a renovação automática já está configurada na máquina.
+
+### Ativar no Django
 
 ```bash
-cp deploy/nginx/default-ssl.conf deploy/nginx/default.conf
 sed -i 's/^DJANGO_HTTPS=0/DJANGO_HTTPS=1/' .env
-docker compose up -d
+docker compose up -d backend
 ```
 
 **Vire o `DJANGO_HTTPS` só depois do certificado ativo.** Com ele em `1` sobre
