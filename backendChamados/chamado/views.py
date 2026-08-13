@@ -75,10 +75,16 @@ class ChamadoViewSet(AuditMixin, viewsets.ModelViewSet):
         params = self.request.query_params
 
         if params.get('meus'):
+            # mais restrito que o escopo por papel: só o que ele mesmo abriu
             qs = qs.filter(solicitante=user)
-        elif not _eh_dit(user) and (params.get('visiveis') or self.action != 'list'):
-            # nas rotas de detalhe (GET/PATCH/DELETE /tickets/<id>/) o escopo é
-            # sempre aplicado — senão qualquer um alcança chamado de qualquer setor
+        elif not _eh_dit(user):
+            # Escopo SEMPRE aplicado a quem não opera o sistema — não depende de
+            # o cliente pedir. Antes o filtro exigia `visiveis=1` na query, o que
+            # deixava a lista inteira acessível a qualquer servidor logado que
+            # simplesmente omitisse o parâmetro (título, descrição, solicitante e
+            # endereço de todos os chamados da prefeitura).
+            #
+            # `visiveis=1` continua aceito e é redundante: o front ainda o envia.
             qs = qs.filter(self._cond_visivel(user))
 
         status_p = params.get('status')
