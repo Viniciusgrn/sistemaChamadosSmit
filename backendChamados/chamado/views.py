@@ -6,7 +6,7 @@ from rest_framework.exceptions import ValidationError, PermissionDenied
 from rest_framework.response import Response
 
 from core.mixins import AuditMixin
-from core.papeis import opera_sistema, eh_aprendiz
+from core.papeis import opera_sistema, eh_aprendiz, eh_da_ti
 from .prioridade import urgencia_de_abertura
 from unidade.models import Unidade
 from usuario.models import Usuario
@@ -97,6 +97,23 @@ class ChamadoViewSet(AuditMixin, viewsets.ModelViewSet):
         solicitante_escolhido = serializer.validated_data.get('solicitante')
         if solicitante_escolhido and not _eh_dit(user):
             raise PermissionDenied('Só a equipe de TI pode abrir chamado em nome de outra pessoa.')
+
+        # O chamado tem que ficar no nome de quem PEDIU o atendimento. Deixar
+        # abrir em nome de outra pessoa da própria TI abre o atalho de registrar
+        # tudo no nome de um colega em vez de perguntar quem ligou — e aí o
+        # solicitante real desaparece do histórico.
+        #
+        # Abrir para SI MESMO continua valendo: gente da TI também tem problema
+        # no próprio computador, e nesse caso o solicitante está identificado.
+        if (
+            solicitante_escolhido
+            and solicitante_escolhido.id != user.id
+            and eh_da_ti(solicitante_escolhido)
+        ):
+            raise ValidationError({'solicitante_id': (
+                'Não abra chamado em nome de alguém da TI — identifique o '
+                'servidor que pediu o atendimento.'
+            )})
 
         if solicitante_escolhido and unidade is None:
             # herda o local do próprio solicitante: unidade dele, ou a unidade

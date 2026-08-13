@@ -178,6 +178,15 @@ export default function NewTicketModal({ onClose, onCreate }) {
             ) : (
             <BuscaServidor
               selecionado={solicitante}
+              // O chamado tem que ficar no nome de quem pediu. Escolher um
+              // colega da TI esconderia o solicitante real — o backend recusa
+              // (chamado/views.perform_create); aqui a lista já explica o porquê.
+              ehDaTi={(u) => {
+                const un = u.unidade ? unidadesApi.find((x) => x.id === u.unidade) : null
+                const divId = un ? (un.divisao?.id ?? un.divisao) : u.divisao
+                const div = divId ? divisoesApi.find((d) => d.id === divId) : null
+                return (div?.secretaria?.sigla || '').toUpperCase() === 'SMIT'
+              }}
               onSelect={(u) => {
                 setSolicitante(u)
                 if (!u) return
@@ -411,7 +420,7 @@ function Campo({ label, required, hint, children }) {
 
 // Busca o servidor que está pedindo o atendimento. Escolher alguém traz o
 // setor e o endereço dele; se ele não tiver setor, o formulário segue manual.
-function BuscaServidor({ selecionado, onSelect }) {
+function BuscaServidor({ selecionado, onSelect, ehDaTi }) {
   const [busca, setBusca] = useState('')
   const [aberto, setAberto] = useState(false)
 
@@ -468,22 +477,34 @@ function BuscaServidor({ selecionado, onSelect }) {
           ) : usuarios.length === 0 ? (
             <li className="px-3 py-2 text-[12px]" style={{ color: C.text3 }}>Nenhum servidor encontrado.</li>
           ) : (
-            usuarios.map((u) => (
-              <li key={u.id}>
-                <button
-                  type="button"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => { onSelect(u); setAberto(false) }}
-                  className="w-full text-left px-3 py-2 rounded text-[13px] transition-colors"
-                  style={{ color: C.text1 }}
-                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = C.hover)}
-                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-                >
-                  <span className="font-medium">{u.nome_completo || u.username}</span>
-                  <span className="text-[11px] ml-2 font-mono" style={{ color: C.text3 }}>{u.username}</span>
-                </button>
-              </li>
-            ))
+            usuarios.map((u) => {
+              // Continua na lista, mas travado: sumir daria a impressão de que
+              // a pessoa não existe. Aparecer com o motivo ensina a regra.
+              const daTi = ehDaTi?.(u)
+              return (
+                <li key={u.id}>
+                  <button
+                    type="button"
+                    disabled={daTi}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => { if (!daTi) { onSelect(u); setAberto(false) } }}
+                    className="w-full text-left px-3 py-2 rounded text-[13px] transition-colors"
+                    style={{ color: daTi ? C.text3 : C.text1, cursor: daTi ? 'not-allowed' : 'pointer' }}
+                    onMouseEnter={(e) => { if (!daTi) e.currentTarget.style.backgroundColor = C.hover }}
+                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                    title={daTi ? 'O chamado precisa ficar no nome de quem pediu o atendimento' : undefined}
+                  >
+                    <span className={daTi ? '' : 'font-medium'}>{u.nome_completo || u.username}</span>
+                    <span className="text-[11px] ml-2 font-mono" style={{ color: C.text3 }}>{u.username}</span>
+                    {daTi && (
+                      <span className="block text-[10px] mt-0.5" style={{ color: '#b45309' }}>
+                        equipe de TI — identifique o solicitante real
+                      </span>
+                    )}
+                  </button>
+                </li>
+              )
+            })
           )}
         </ul>
       )}
