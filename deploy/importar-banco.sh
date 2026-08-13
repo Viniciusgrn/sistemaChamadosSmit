@@ -90,14 +90,27 @@ fi
 
 # --- conferência -----------------------------------------------------------
 echo
-echo "==> Conferência"
+echo "==> Conferência (TODOS os modelos, não amostra)"
 CID_BACK="$(cid_backend)"
 docker exec "$CID_BACK" python manage.py shell -c "
 from django.apps import apps
-for m in ['usuario.Usuario','unidade.Unidade','chamado.Chamado','equipeTecnica.Equipe']:
-    a,n = m.split('.')
-    print(f'  {m}: {apps.get_model(a,n).objects.count()}')
-" 2>/dev/null | tail -5
+apps_locais = ['usuario','unidade','chamado','equipeTecnica','automovel',
+               'equipamento','manutencao','terceirizada','ramal','core']
+total = 0
+for nome in apps_locais:
+    try: cfg = apps.get_app_config(nome)
+    except LookupError: continue
+    linhas = []
+    for M in cfg.get_models():
+        try: n = M.objects.count()
+        except Exception: continue
+        total += n
+        linhas.append((M._meta.label, n))
+    if linhas:
+        for label, n in sorted(linhas, key=lambda x: -x[1]):
+            print(f'  {label:42} {n:>6}')
+print(f'  {\"TOTAL\":42} {total:>6}')
+" 2>/dev/null | grep -E '^\s{2}\S'
 
 echo
 echo "Compare com a origem. Se algo estiver errado, o estado anterior está em:"
