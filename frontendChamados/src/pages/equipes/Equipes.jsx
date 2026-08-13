@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Plus, Users, History, UserCheck, Loader2, AlertCircle } from 'lucide-react'
 
 import LobbyCard from './LobbyCard'
@@ -6,13 +7,14 @@ import EquipeAtivaCard from './EquipeAtivaCard'
 import EquipeHistoricoCard from './EquipeHistoricoCard'
 import FormarEquipeModal from './FormarEquipeModal'
 import { RESP_META } from './data'
+import { STATUS_META as TECNICO_STATUS_META } from '../tecnicos/data'
 import { separaPorFase } from './adapters'
 import {
   useEquipes, useEntrarEquipe, useSairEquipe, useDespacharEquipe, useEncerrarEquipe,
   useEditarEquipe, useExcluirEquipe,
 } from '../../hooks/useEquipes'
 import { useTecnicos } from '../../hooks/useTecnicos'
-import { useAuth } from '../../contexts/AuthContext'
+import { useAuth, ehPerfilCampo } from '../../contexts/AuthContext'
 
 const C = {
   bg:        '#f7f7f4',
@@ -28,7 +30,12 @@ const C = {
 }
 
 export default function Equipes() {
-  const { user } = useAuth()
+  const { user, perfil } = useAuth()
+  const navigate = useNavigate()
+  // Na versão de campo o chamado não é escolhido num popover: a aba Chamados
+  // tem busca, mapa e a confirmação de troca de chamado. "Sair pra campo" só
+  // leva o técnico até lá — quem despacha de fato é o "Ir para o chamado".
+  const naTelaDeCampo = ehPerfilCampo(perfil)
   const { data: equipesApi = [], isLoading, isError, error } = useEquipes()
   const { data: tecnicos = [] } = useTecnicos()
 
@@ -143,7 +150,7 @@ export default function Equipes() {
           <TabButton
             ativo={aba === 'formacao'}
             icon={Users}
-            label="Em formação"
+            label="Equipes"
             onClick={() => setAba('formacao')}
           />
           <TabButton
@@ -195,14 +202,15 @@ export default function Equipes() {
                   onEntrar={handleEntrar}
                   onSair={handleSair}
                   onSairCampo={handleSairCampo}
+                  onIrParaChamados={naTelaDeCampo ? () => navigate('/chamados') : undefined}
                   onEncerrar={handleEncerrar}
                   onTrocarCarro={handleTrocarCarro}
                   onDesfazer={handleDesfazer}
                 />
               )}
               {aba === 'historico' && <AbaHistorico historico={historico} />}
-              {/* a aba de consulta mostra todos os livres, não só ele */}
-              {aba === 'tecnicos'  && <AbaTecnicos tecnicos={todosLivres} />}
+              {/* todos os técnicos, sempre: o que muda é o status de cada um */}
+              {aba === 'tecnicos'  && <AbaTecnicos tecnicos={tecnicos} />}
             </>
           )}
         </div>
@@ -223,7 +231,7 @@ function Estado({ icon: Icon, texto, spin }) {
 }
 
 // ---------- Aba: Em formação (lobbies + equipes ativas) ----------
-function AbaFormacao({ lobbies, ativas, livres, onEntrar, onSair, onSairCampo, onEncerrar, onTrocarCarro, onDesfazer }) {
+function AbaFormacao({ lobbies, ativas, livres, onEntrar, onSair, onSairCampo, onIrParaChamados, onEncerrar, onTrocarCarro, onDesfazer }) {
   return (
     <div className="space-y-8">
       <Section
@@ -240,6 +248,7 @@ function AbaFormacao({ lobbies, ativas, livres, onEntrar, onSair, onSairCampo, o
               onEntrar={onEntrar}
               onSair={onSair}
               onSairCampo={onSairCampo}
+              onIrParaChamados={onIrParaChamados}
               onTrocarCarro={onTrocarCarro}
               onDesfazer={onDesfazer}
             />
@@ -324,16 +333,24 @@ function AbaTecnicos({ tecnicos }) {
             </div>
           </div>
 
-          <span
-            className="px-2 py-0.5 rounded text-[10px] font-medium tracking-tight flex-shrink-0"
-            style={
-              t.disponivel
-                ? { backgroundColor: '#dcfce7', color: '#14532d' }
-                : { backgroundColor: '#f3f2ee', color: C.text2 }
-            }
-          >
-            {t.disponivel ? 'Disponível' : 'Folga'}
-          </span>
+          {/* Ninguém sai desta lista: o que muda é o selo. "Em campo" traz
+              junto de quem ele está e em qual chamado (vem de `contexto`). */}
+          <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
+            <span
+              className="px-2 py-0.5 rounded text-[10px] font-medium tracking-tight whitespace-nowrap"
+              style={{
+                backgroundColor: TECNICO_STATUS_META[t.status]?.bg || '#f3f2ee',
+                color: TECNICO_STATUS_META[t.status]?.cor || C.text2,
+              }}
+            >
+              {TECNICO_STATUS_META[t.status]?.label || '—'}
+            </span>
+            {t.contexto?.label && (
+              <span className="text-[10px] truncate max-w-[160px]" style={{ color: C.text3 }}>
+                {t.contexto.label}
+              </span>
+            )}
+          </div>
         </li>
       ))}
     </ul>

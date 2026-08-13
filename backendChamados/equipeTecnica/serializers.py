@@ -264,11 +264,16 @@ class EquipeSerializer(serializers.ModelSerializer):
         if not c:
             return None
         unidade = c.unidade
+        endereco = getattr(unidade, 'endereco', None)
         return {
             'id': c.id, 'titulo': c.titulo,
-            'endereco': getattr(getattr(unidade, 'endereco', None), 'rua', None),
+            'endereco': getattr(endereco, 'rua', None),
             'urgencia': c.urgencia,
             'unidade_nome': getattr(unidade, 'nome', None),
+            # onde a equipe está agora: é a posição do chamado que ela atende.
+            # Sem isso o mapa não conseguia desenhar as equipes em campo.
+            'latitude': getattr(endereco, 'latitude', None),
+            'longitude': getattr(endereco, 'longitude', None),
             # interno = chamado dentro do Paço, onde a própria SMIT fica: a equipe
             # resolve sem deslocamento. Externo exige ir até a unidade.
             'interno': bool(getattr(unidade, 'paco_municipal', False)),

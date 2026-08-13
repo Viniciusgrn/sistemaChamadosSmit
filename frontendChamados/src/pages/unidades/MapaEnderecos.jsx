@@ -25,9 +25,12 @@ function makePinIcon(color) {
 function FlyToSelected({ endereco }) {
   const map = useMap()
   useEffect(() => {
-    if (endereco) {
-      map.flyTo([endereco.latitude, endereco.longitude], 16, { duration: 0.7 })
-    }
+    if (!endereco) return
+    // setView em vez de flyTo: a animação do flyTo é engolida pelo
+    // invalidateSize que roda junto (mesmo motivo do fitBounds aqui do lado),
+    // e o mapa ficava parado no zoom inicial ao chegar pelo link de um chamado
+    map.invalidateSize()
+    map.setView([Number(endereco.latitude), Number(endereco.longitude)], 16, { animate: false })
   }, [endereco, map])
   return null
 }
@@ -40,7 +43,7 @@ function FlyToSelected({ endereco }) {
  * arrastando". Também corrige o tamanho do container, que nasce zerado quando
  * o mapa monta dentro de uma aba.
  */
-function EnquadrarNosPinos({ enderecos, expandirPara }) {
+function EnquadrarNosPinos({ enderecos, expandirPara, temAlvo }) {
   const map = useMap()
   const chave = enderecos.map((e) => e.id).join(',')
 
@@ -63,7 +66,18 @@ function EnquadrarNosPinos({ enderecos, expandirPara }) {
       else map.fitBounds(L.latLngBounds(pontos), { padding: [40, 40], maxZoom: 16, animate: false })
     }
 
+    // O botão de reenquadrar continua disponível mesmo quando há alvo.
     expandirPara?.(enquadrar)
+
+    // Veio de um chamado ("ver no mapa"): quem manda no enquadramento é o
+    // FlyToSelected, que centraliza naquele endereço. Enquadrar tudo aqui
+    // brigaria com ele e a pessoa perderia o ponto que foi ver.
+    if (temAlvo) {
+      // sem timeout: um invalidateSize atrasado cancelaria o voo do FlyToSelected
+      map.invalidateSize()
+      return
+    }
+
     enquadrar()
     // reenquadra depois do layout assentar (animação de entrada, teclado…)
     const t = setTimeout(enquadrar, 150)
@@ -79,9 +93,19 @@ export default function MapaEnderecos({ enderecos, selecionado, onSelect, predio
   const reenquadrarRef = useRef(null)
 
   useEffect(() => {
-    if (selecionado && markerRefs.current[selecionado.id]) {
-      markerRefs.current[selecionado.id].openPopup()
+    if (!selecionado) return
+    // O marcador pode ainda não ter registrado a ref quando a seleção chega de
+    // fora (link "Ver no mapa" de um chamado): tenta de novo no próximo tick.
+    let tentativas = 0
+    let t
+    const abrir = () => {
+      const marcador = markerRefs.current[selecionado.id]
+      if (marcador?.openPopup) { marcador.openPopup(); return }
+      // o <Popup> é filho do <Marker> e só é vinculado depois; insiste um pouco
+      if (++tentativas < 8) t = setTimeout(abrir, 60)
     }
+    abrir()
+    return () => clearTimeout(t)
   }, [selecionado])
 
   return (
@@ -165,6 +189,7 @@ export default function MapaEnderecos({ enderecos, selecionado, onSelect, predio
         <EnquadrarNosPinos
           enderecos={enderecos}
           expandirPara={(fn) => { reenquadrarRef.current = fn }}
+          temAlvo={!!selecionado}
         />
         <FlyToSelected endereco={selecionado} />
       </MapContainer>

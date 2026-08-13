@@ -1,0 +1,245 @@
+# Deploy na VPS
+
+Três containers: **nginx** (SPA + proxy), **gunicorn/Django**, **MySQL**.
+Só o nginx publica porta. Banco e Django ficam na rede interna do compose.
+
+```
+navegador → :80 nginx ─┬─ /            → SPA (arquivos estáticos do Vite)
+                       ├─ /api/, /admin/ → gunicorn:8000
+                       ├─ /static/      → volume do collectstatic
+                       └─ /media/       → volume dos uploads
+```
+
+Front e API saem da **mesma origem**. É isso que faz o cookie de sessão do
+Django funcionar sem CORS — em produção a lista de CORS fica vazia de propósito.
+
+## Arquivos
+
+| Arquivo | Papel |
+|---|---|
+| `docker-compose.yml` | os três serviços e os volumes |
+| `.env.example` | modelo do `.env` (copie e preencha na VPS) |
+| `backendChamados/Dockerfile` | Python 3.12 + gunicorn, build do mysqlclient em estágio separado |
+| `backendChamados/entrypoint.sh` | espera o banco, roda `migrate` e `collectstatic` |
+| `backendChamados/requirements.txt` | versões congeladas do que já estava instalado |
+| `frontendChamados/Dockerfile` | build do Vite → nginx |
+| `deploy/nginx/default.conf` | rotas do nginx (bind mount: editar não exige rebuild) |
+| `deploy/nginx/default-ssl.conf` | mesma coisa, já com TLS — trocar depois do certbot |
+| `deploy/nginx/proxy_params_chamados` | cabeçalhos de proxy pro Django |
+| `deploy/provisionar-vps.sh` | prepara a máquina: Docker, firewall, fuso (swap só se a RAM for baixa) |
+| `backendChamados/gunicorn.conf.py` | workers/threads — é aqui que mora a capacidade |
+| `backendChamados/healthcheck.py` | sonda do `HEALTHCHECK`: o Django ainda responde? |
+| `deploy/swarm/stack.yml` | versão Swarm da stack (secrets, réplicas) |
+| `deploy/swarm/publicar.sh` | build das imagens + secrets + `stack deploy` |
+| `deploy/exportar-banco.sh` | dump do banco + uploads, na máquina de dev |
+| `deploy/importar-banco.sh` | restaura o pacote na VPS (compose ou swarm) |
+
+## Este ambiente
+
+| | |
+|---|---|
+| VPS | `2.24.89.242` — Hostinger KVM4: 4 vCPU, 16 GB, 200 GB NVMe |
+| Domínio | `os.bragancapta.sp.gov.br` |
+
+Com 16 GB não se cria swap (o script de provisionamento pula sozinho acima de
+4 GB de RAM).
+
+## Subir pela primeira vez
+
+**1. Preparar a máquina** (uma vez só, como root — instala Docker, firewall e swap):
+
+```bash
+sudo bash deploy/provisionar-vps.sh
+```
+
+**2. Clonar e configurar:**
+
+```bash
+git clone <repo> sistema-chamados && cd sistema-chamados
+cp .env.example .env
+```
+
+Gere os três segredos **no próprio servidor** e cole no `.env`. A
+`SECRET_KEY` que está no `settings.py` é pública (está versionada) e não serve
+para produção:
+
+```bash
+openssl rand -base64 48    # DJANGO_SECRET_KEY
+openssl rand -base64 24    # DB_PASSWORD
+openssl rand -base64 24    # DB_ROOT_PASSWORD
+```
+
+`DJANGO_ALLOWED_HOSTS` e `DJANGO_CSRF_TRUSTED_ORIGINS` já vêm preenchidos com o
+domínio e o IP deste ambiente.
+
+**3. Subir:**
+
+```bash
+docker compose up -d --build
+```
+
+O `entrypoint.sh` já roda as migrações e o `collectstatic` sozinho. Falta só o
+primeiro usuário:
+
+```bash
+docker compose exec backend python manage.py createsuperuser
+```
+
+## Swarm (alternativa ao compose)
+
+O `docker-compose.yml` continua sendo o caminho simples. O Swarm entra quando
+você quer **atualizar o backend sem derrubar o sistema** e **senha fora do
+`environment`**. Em nó único ele não dá alta disponibilidade — se a VPS cair,
+cai tudo igual. O ganho real aqui é operacional.
+
+### O que Swarm NÃO resolve
+
+Réplica em nó único **não aumenta capacidade**: as duas dividem os mesmos
+4 vCPUs. Quem determina quantas requisições simultâneas o sistema atende é o
+número de *workers* do gunicorn — está em
+[`gunicorn.conf.py`](../backendChamados/gunicorn.conf.py), com `WEB_CONCURRENCY`
+por ambiente:
+
+| | workers por instância | instâncias | total |
+|---|---|---|---|
+| compose | 9 | 1 | 9 |
+| swarm | 4 | 2 | 8 |
+
+O total é o que importa, e ele é ditado pelos núcleos — não pelo número de
+réplicas. Subir `replicas` sem baixar `WEB_CONCURRENCY` piora: mais processos
+brigando pela mesma CPU.
+
+O que a réplica dá de verdade contra travamento é **substituir instância
+travada**: o `HEALTHCHECK` do backend sonda se o Django ainda responde, e o
+Swarm troca a réplica que parou de responder — sem isso, "escalar" só
+multiplica container zumbi.
+
+Se o travamento continuar depois disso, o próximo suspeito é consulta ao banco
+(N+1 nos serializers), não infraestrutura. Aí a ferramenta é medir, não
+aumentar réplica.
+
+```bash
+docker swarm init --advertise-addr 2.24.89.242   # uma vez só
+bash deploy/swarm/publicar.sh                    # build + secrets + deploy
+```
+
+O `publicar.sh` cria os três secrets na primeira execução (gerados com
+`openssl` dentro da VPS) e faz o deploy. Nas próximas vezes ele reaproveita os
+secrets existentes e só reconstrói as imagens.
+
+Diferenças que valem saber:
+
+| | compose | swarm |
+|---|---|---|
+| Senhas | `.env` (visível em `docker inspect`) | secret em `/run/secrets/` |
+| Backend | 1 container | 2 réplicas, atualização `start-first` |
+| Banco | 1 container | 1 réplica, `stop-first`, preso ao nó manager |
+| Build | `docker compose up --build` | `publicar.sh` (Swarm não builda) |
+
+O banco fica em **uma réplica só, de propósito**. Dois MySQL no mesmo volume
+corrompem os dados — escalar banco é replicação, não `replicas: 2`.
+
+```bash
+docker stack services chamados          # estado
+docker service logs -f chamados_backend # log
+docker stack rm chamados                # derrubar (volumes ficam)
+```
+
+## Levar o banco atual para a VPS
+
+O `migrate` roda sozinho no entrypoint, então o **schema** nunca é problema. O
+que precisa viajar são os **dados** — hoje 2008 usuários e 173 unidades — e os
+**uploads** (plantas dos andares), que são arquivos em disco e não estão no
+dump.
+
+Na máquina de desenvolvimento:
+
+```bash
+bash deploy/exportar-banco.sh
+scp deploy/dump/*.gz root@2.24.89.242:/root/
+```
+
+Na VPS, com a stack já no ar:
+
+```bash
+bash deploy/importar-banco.sh /root/banco-AAAAMMDD-HHMM.sql.gz /root/media-AAAAMMDD-HHMM.tar.gz
+```
+
+O script detecta sozinho se você está em compose ou swarm, **faz backup do que
+já estava lá** antes de qualquer coisa, para o backend durante a troca,
+recria o schema, importa e mostra a contagem de registros para você conferir
+contra a origem.
+
+> O dump sai em `deploy/dump/`, que está no `.gitignore`. Ele contém dados
+> pessoais de mais de 2000 servidores — não versione, não mande por e-mail e
+> apague da VPS depois de conferir a importação.
+
+## Operação
+
+```bash
+docker compose logs -f backend        # log do gunicorn
+docker compose ps                     # estado dos containers
+docker compose up -d --build          # publicar uma versão nova
+docker compose exec backend python manage.py migrate   # migração avulsa
+```
+
+Backup do banco (o volume `db_data` guarda os dados; isto gera o dump):
+
+```bash
+docker compose exec db mysqldump -u root -p"$DB_ROOT_PASSWORD" sistema_chamados > backup-$(date +%F).sql
+```
+
+## HTTPS
+
+O compose sobe em HTTP — proposital, para você validar o sistema pelo IP
+(`http://2.24.89.242`) antes de mexer no DNS.
+
+### Pré-requisito: apontar o DNS
+
+Hoje `os.bragancapta.sp.gov.br` resolve para `162.241.60.59` (a hospedagem
+antiga). O Let's Encrypt valida o domínio acessando `http://os.bragancapta...`
+pela internet — enquanto o registro A não apontar para `2.24.89.242`, a emissão
+falha com "connection refused" ou entrega a validação ao servidor errado.
+
+Confirme antes de tentar (deve responder `2.24.89.242`):
+
+```bash
+dig +short os.bragancapta.sp.gov.br
+```
+
+Propagação costuma levar de minutos a algumas horas.
+
+### Emitir o certificado
+
+```bash
+docker compose run --rm certbot certonly --webroot -w /var/www/certbot \
+  -d os.bragancapta.sp.gov.br --agree-tos -m <seu-email> --no-eff-email
+```
+
+### Ativar
+
+```bash
+cp deploy/nginx/default-ssl.conf deploy/nginx/default.conf
+sed -i 's/^DJANGO_HTTPS=0/DJANGO_HTTPS=1/' .env
+docker compose up -d
+```
+
+**Vire o `DJANGO_HTTPS` só depois do certificado ativo.** Com ele em `1` sobre
+HTTP puro, o navegador descarta o cookie de sessão e o login entra em loop sem
+mensagem de erro.
+
+### Renovação
+
+O certificado vale 90 dias. Agende a renovação no cron do host:
+
+```bash
+0 3 * * 1 cd /caminho/do/repo && docker compose run --rm certbot renew --quiet && docker compose restart web
+```
+
+Depois do TLS no ar, vale ligar `SECURE_SSL_REDIRECT` e `SECURE_HSTS_SECONDS`
+no `settings.py` — são os dois avisos que sobram no `manage.py check --deploy`.
+
+## Firewall
+
+O compose publica só a 80. Garanta que 3306 (MySQL) e 8000 (gunicorn) não estão
+abertos no provedor: eles não precisam sair da VPS.

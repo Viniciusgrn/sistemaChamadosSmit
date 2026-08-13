@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  PlayCircle, Lock, MapPin, Loader2, AlertCircle, Search, Users, Car,
+  PlayCircle, Lock, MapPin, Loader2, AlertCircle, Search, Users, Car, Map,
 } from 'lucide-react'
 
 import { useAuth } from '../../contexts/AuthContext'
@@ -11,7 +11,9 @@ import {
 import { useEquipesAtivas } from '../../hooks/useEquipes'
 import { PRIORITY_META, STATUS_META } from '../chamados/data'
 import { STATUS_ABERTOS } from '../../components/chamados/TicketsTable'
+import { LocalChamado } from '../../components/chamados/shared'
 import EncerrarAtendimentoModal from '../../components/chamados/EncerrarAtendimentoModal'
+import MapaChamadosModal from '../../components/chamados/MapaChamadosModal'
 import { mensagemErro } from '../../api/erros'
 
 const C = {
@@ -35,6 +37,7 @@ export default function ChamadosCampo() {
 
   const [busca, setBusca] = useState('')
   const [erro, setErro] = useState('')
+  const [mapaAberto, setMapaAberto] = useState(false)
   // troca de chamado pendente de confirmação { atual, destino }
   const [troca, setTroca] = useState(null)
 
@@ -136,19 +139,31 @@ export default function ChamadosCampo() {
         </div>
       )}
 
-      <div className="relative">
-        <Search
-          className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none"
-          strokeWidth={1.75}
-          style={{ color: C.text3 }}
-        />
-        <input
-          value={busca}
-          onChange={(e) => setBusca(e.target.value)}
-          placeholder="Buscar chamado, unidade, endereço…"
-          className="w-full pl-9 pr-3 min-h-[44px] rounded-lg text-[13px] focus:outline-none"
-          style={{ backgroundColor: C.surface, border: `1px solid ${C.border}`, color: C.text1 }}
-        />
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1 min-w-0">
+          <Search
+            className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none"
+            strokeWidth={1.75}
+            style={{ color: C.text3 }}
+          />
+          <input
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+            placeholder="Buscar chamado, unidade, endereço…"
+            className="w-full pl-9 pr-3 min-h-[44px] rounded-lg text-[13px] focus:outline-none"
+            style={{ backgroundColor: C.surface, border: `1px solid ${C.border}`, color: C.text1 }}
+          />
+        </div>
+        {/* mapa só das unidades que têm chamado aberto */}
+        <button
+          onClick={() => setMapaAberto(true)}
+          className="w-11 h-11 rounded-lg flex items-center justify-center flex-shrink-0"
+          style={{ backgroundColor: C.surface, border: `1px solid ${C.border}`, color: C.text2 }}
+          aria-label="Ver mapa dos chamados"
+          title="Ver mapa dos chamados"
+        >
+          <Map className="w-5 h-5" strokeWidth={1.75} />
+        </button>
       </div>
 
       {abertos.length === 0 ? (
@@ -167,6 +182,14 @@ export default function ChamadosCampo() {
             />
           ))}
         </ul>
+      )}
+
+      {mapaAberto && (
+        <MapaChamadosModal
+          tickets={chamados}
+          teams={equipes}
+          onClose={() => setMapaAberto(false)}
+        />
       )}
 
       {troca && (
@@ -212,9 +235,13 @@ function LinhaChamado({ chamado, euAtendo, atendidoPorOutro, podeAtender, ocupad
         </span>
       </div>
 
-      <div className="flex items-start gap-1.5 text-[12px]" style={{ color: C.text2 }}>
-        <MapPin className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" strokeWidth={1.75} style={{ color: C.text3 }} />
-        <span className="min-w-0 break-words">{chamado.client}</span>
+      <div className="flex flex-col gap-1.5 text-[12px]" style={{ color: C.text2 }}>
+        <div className="flex items-start gap-1.5">
+          <MapPin className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" strokeWidth={1.75} style={{ color: C.text3 }} />
+          <span className="min-w-0 break-words">{chamado.client}</span>
+        </div>
+        {/* saber se precisa sair do prédio vem antes de qualquer outra coisa */}
+        <LocalChamado chamado={chamado} />
       </div>
 
       <div className="flex items-center justify-between gap-2">

@@ -1,0 +1,7 @@
+# O entrypoint roda dentro de um container Linux. Se o git entregar CRLF (o
+# padrão no Windows), o shell tenta executar "/bin/sh\r" e o container morre com
+# "no such file or directory" — erro que não dá nenhuma pista do motivo real.
+*.sh text eol=lf
+entrypoint.sh text eol=lf
+Dockerfile text eol=lf
+*.conf text eol=lf

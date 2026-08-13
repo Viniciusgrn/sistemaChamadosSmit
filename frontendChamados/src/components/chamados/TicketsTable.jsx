@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react"
 import { Search, SlidersHorizontal, X } from 'lucide-react'
-import { PriorityCell, StatusChip } from "./shared"
+import { PriorityCell, StatusChip, LocalChamado } from "./shared"
 import { TERCEIRIZADAS_META, PRIORITY_META, TERC_STATUS_META, STATUS_META, STATUS_EDITAVEIS } from "../../pages/chamados/data"
 import FiltrosAvancados from "./FiltrosAvancados"
 import TerceirizadaModal from "./TerceirizadaModal"
@@ -534,7 +534,13 @@ function TabelaChamados({ linhas, onOpen, onUpdate }) {
             >
               <td className="px-4 py-2.5 font-mono font-semibold" style={{ color: C.text1 }}>{t.code}</td>
               <td className="px-4 py-2.5" style={{ color: C.text1 }}>{t.title}</td>
-              <td className="px-4 py-2.5" style={{ color: C.text2 }}>{t.address}</td>
+              {/* interno/externo é o que decide se a equipe precisa se deslocar */}
+              <td className="px-4 py-2.5" style={{ color: C.text2 }}>
+                <div className="flex items-center gap-2 min-w-0">
+                  <LocalChamado chamado={t} compacto />
+                  <span className="truncate">{t.address}</span>
+                </div>
+              </td>
               <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
                 {onUpdate
                   ? <SelectInline

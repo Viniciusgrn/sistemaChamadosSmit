@@ -36,6 +36,9 @@ export function adaptaEquipe(e) {
     vehicle: v ? { plate: v.placa, model: v.modelo } : null,
     // interno = unidade dentro do Paço (sem deslocamento); só faz sentido com chamado
     interno: c ? c.interno : null,
+    // posição da equipe = a do chamado que ela atende (é o que o mapa desenha)
+    latitude: c?.latitude != null ? Number(c.latitude) : null,
+    longitude: c?.longitude != null ? Number(c.longitude) : null,
     location: (c?.interno ? c?.unidade_nome : c?.endereco) || c?.endereco || '',
     encerrada_em: e.encerrada_em,
   }

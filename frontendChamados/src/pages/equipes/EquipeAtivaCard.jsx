@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Car, Ticket, Users, Clock, History } from 'lucide-react'
+import { Car, Ticket, Users, Clock, History, Building2, MapPin } from 'lucide-react'
 import { nomeEquipe, MOTIVO_ENCERRAMENTO_META } from './data'
 
 const C = {
@@ -53,13 +53,34 @@ export default function EquipeAtivaCard({ equipe, onEncerrar }) {
           </div>
         </div>
 
-        <span
-          className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium tracking-tight flex-shrink-0"
-          style={{ backgroundColor: C.ativa, color: C.ativaFg }}
-        >
-          <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: '#2563eb' }} />
-          Em campo
-        </span>
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          {/* interno = atende sem sair do Paço; externo = se deslocou */}
+          {chamado && (
+            <span
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold tracking-tight whitespace-nowrap"
+              style={chamado.interno
+                ? { backgroundColor: '#ccfbf1', color: '#0f766e' }
+                : { backgroundColor: '#fef3c7', color: '#b45309' }}
+              title={chamado.interno
+                ? 'Atendimento no Paço Municipal'
+                : `Fora do Paço — ${chamado.endereco || chamado.unidade_nome || ''}`}
+            >
+              {chamado.interno
+                ? <Building2 className="w-3 h-3" strokeWidth={2} />
+                : <MapPin className="w-3 h-3" strokeWidth={2} />}
+              {chamado.interno ? 'Interno' : 'Externo'}
+            </span>
+          )}
+          {/* "Em campo" só quando houve deslocamento — senão contradiz o
+              selo "Interno" logo ao lado */}
+          <span
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium tracking-tight whitespace-nowrap"
+            style={{ backgroundColor: C.ativa, color: C.ativaFg }}
+          >
+            <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: '#2563eb' }} />
+            {chamado && chamado.interno ? 'Em atendimento' : 'Em campo'}
+          </span>
+        </div>
       </div>
 
       <div

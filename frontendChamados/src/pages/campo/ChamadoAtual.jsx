@@ -127,7 +127,7 @@ export default function ChamadoAtual() {
             style={{ backgroundColor: '#ccfbf1', color: '#0f766e' }}
           >
             <Building2 className="w-4 h-4" strokeWidth={1.75} />
-            Atendimento interno · aqui no Paço
+            Atendimento interno
           </div>
         ) : chamado.latitude != null && chamado.longitude != null ? (
           <a

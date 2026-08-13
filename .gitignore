@@ -1,5 +1,6 @@
 # --- dados pessoais de servidores (NUNCA subir) ---
 ramais.txt
+deploy/dump/
 backendChamados/Usuarios_AD_Completo.csv
 backendChamados/usuarios_ad_tratado.csv
 backendChamados/usuarios_ad_descartados.csv
@@ -11,6 +12,7 @@ __pycache__/
 .venv/
 venv/
 .env
+backendChamados/staticfiles/
 
 # --- node / vite ---
 node_modules/

@@ -10,22 +10,48 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
+import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
+# Tudo que muda entre a máquina do dev e a VPS vem de variável de ambiente, com
+# o valor de desenvolvimento como padrão: rodar `manage.py runserver` local
+# continua funcionando sem .env nenhum.
+
+def _env(nome, padrao=''):
+    """
+    Valor da variável, ou o conteúdo do arquivo apontado por <NOME>_FILE.
+
+    O Swarm entrega segredo como arquivo em /run/secrets/, o compose entrega
+    como variável. Aceitar os dois evita manter dois settings — e mantém a
+    senha fora da listagem de `docker inspect`, que expõe o environment.
+    """
+    caminho = os.environ.get(f'{nome}_FILE')
+    if caminho:
+        with open(caminho, encoding='utf-8') as arquivo:
+            return arquivo.read().strip()
+    return os.environ.get(nome, padrao)
+
+
+def _lista_env(nome, padrao=''):
+    return [item.strip() for item in _env(nome, padrao).split(',') if item.strip()]
+
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-n54p=7(qdqi7m&rki2nqh-zon0%+zgoj=1_@@ps6e#fc8plsmq'
+# Em produção o docker-compose injeta DJANGO_SECRET_KEY — esta abaixo é pública
+# (está no repositório) e serve só pro ambiente local.
+SECRET_KEY = _env(
+    'DJANGO_SECRET_KEY',
+    'django-insecure-n54p=7(qdqi7m&rki2nqh-zon0%+zgoj=1_@@ps6e#fc8plsmq',
+)
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get('DJANGO_DEBUG', '1') == '1'
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = _lista_env('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1')
 
 
 # Application definition
@@ -65,21 +91,22 @@ MIDDLEWARE = [
 ]
 
 # CORS — front Vite (5173) e segunda porta quando 5173 está ocupada (5174).
-CORS_ALLOWED_ORIGINS = [
-    'http://localhost:5173',
-    'http://127.0.0.1:5173',
-    'http://localhost:5174',
-    'http://127.0.0.1:5174',
-]
+# Em produção a lista fica VAZIA de propósito: o nginx serve SPA e API na mesma
+# origem, então não há requisição cross-origin pra liberar.
+CORS_ALLOWED_ORIGINS = _lista_env(
+    'DJANGO_CORS_ALLOWED_ORIGINS',
+    'http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174'
+    if DEBUG else '',
+)
 CORS_ALLOW_CREDENTIALS = True   # cookies de session vão entre front e back
 
-# CSRF: o front também precisa estar listado pra POST/PUT/DELETE funcionarem
-CSRF_TRUSTED_ORIGINS = [
-    'http://localhost:5173',
-    'http://127.0.0.1:5173',
-    'http://localhost:5174',
-    'http://127.0.0.1:5174',
-]
+# CSRF: o front também precisa estar listado pra POST/PUT/DELETE funcionarem.
+# Em produção entram aqui os domínios públicos (com esquema), via .env.
+CSRF_TRUSTED_ORIGINS = _lista_env(
+    'DJANGO_CSRF_TRUSTED_ORIGINS',
+    'http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174'
+    if DEBUG else '',
+)
 
 ROOT_URLCONF = 'backendChamados.urls'
 
@@ -107,11 +134,12 @@ WSGI_APPLICATION = 'backendChamados.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'sistema_chamados',
-        'USER': 'root',
-        'PASSWORD': 'root',
-        'HOST': '127.0.0.1',
-        'PORT': '3306',
+        'NAME': _env('DB_NAME', 'sistema_chamados'),
+        'USER': _env('DB_USER', 'root'),
+        'PASSWORD': _env('DB_PASSWORD', 'root'),
+        # no compose o host é o nome do serviço ('db'), não localhost
+        'HOST': _env('DB_HOST', '127.0.0.1'),
+        'PORT': _env('DB_PORT', '3306'),
         'OPTIONS': {
             'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
             'charset': 'utf8mb4',
@@ -169,11 +197,33 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
+# destino do collectstatic; em produção é um volume que o nginx lê direto
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 # Uploads (plantas dos prédios, etc.)
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+
+# ---------------------------------------------------------------------------
+# Produção atrás do nginx
+# ---------------------------------------------------------------------------
+
+# Quem termina o TLS é o nginx; o Django só sabe disso pelo cabeçalho que ele
+# repassa (deploy/nginx/proxy_params_chamados).
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# Cookie 'secure' só quando o domínio já tem certificado: ligado cedo demais,
+# o navegador descarta o cookie de sessão em HTTP e ninguém consegue logar.
+_HTTPS = os.environ.get('DJANGO_HTTPS', '0') == '1'
+SESSION_COOKIE_SECURE = _HTTPS
+CSRF_COOKIE_SECURE = _HTTPS
+
+if not DEBUG:
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SESSION_COOKIE_HTTPONLY = True
+    X_FRAME_OPTIONS = 'DENY'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field

@@ -83,6 +83,8 @@ export function adaptaChamado(c) {
     address: c.endereco || '',
     // interno = dentro do Paço: a equipe resolve sem sair do prédio
     interno: !!c.interno,
+    // pra centralizar o mapa de Localidades neste endereço
+    enderecoId: c.endereco_id ?? null,
     latitude: c.latitude != null ? Number(c.latitude) : null,
     longitude: c.longitude != null ? Number(c.longitude) : null,
 

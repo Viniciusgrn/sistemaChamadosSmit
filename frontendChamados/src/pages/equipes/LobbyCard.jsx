@@ -27,7 +27,7 @@ const URGENCIA_META = {
 
  
 
-export default function LobbyCard({ lobby, livres = [], onEntrar, onSair, onSairCampo, onTrocarCarro, onDesfazer }) {
+export default function LobbyCard({ lobby, livres = [], onEntrar, onSair, onSairCampo, onIrParaChamados, onTrocarCarro, onDesfazer }) {
   const [escolhendoSlot, setEscolhendoSlot] = useState(null)
   const [escolhendoChamado, setEscolhendoChamado] = useState(false)
   const [escolhendoCarro, setEscolhendoCarro] = useState(false)
@@ -200,7 +200,13 @@ export default function LobbyCard({ lobby, livres = [], onEntrar, onSair, onSair
         )}
 
         <button
-          onClick={(e) => podeSair && abrir(setEscolhendoChamado, true)(e)}
+          onClick={(e) => {
+            if (!podeSair) return
+            // na tela de campo o chamado se escolhe na aba Chamados (busca,
+            // mapa e confirmação de troca); aqui o botão só leva até lá
+            if (onIrParaChamados) return onIrParaChamados(lobby)
+            abrir(setEscolhendoChamado, true)(e)
+          }}
           disabled={!podeSair}
           className="flex items-center gap-1.5 px-4 py-1.5 rounded-md text-[12px] font-medium transition-colors"
           style={{
@@ -210,7 +216,11 @@ export default function LobbyCard({ lobby, livres = [], onEntrar, onSair, onSair
           }}
           onMouseEnter={(e) => { if (podeSair) e.currentTarget.style.backgroundColor = C.accentInk }}
           onMouseLeave={(e) => { if (podeSair) e.currentTarget.style.backgroundColor = C.accent }}
-          title={podeSair ? 'Escolher o chamado e despachar' : 'A equipe precisa de ao menos 1 integrante'}
+          title={
+            !podeSair ? 'A equipe precisa de ao menos 1 integrante'
+              : onIrParaChamados ? 'Ver os chamados abertos e escolher o atendimento'
+              : 'Escolher o chamado e despachar'
+          }
         >
           Sair pra campo
           <ArrowRight className="w-3.5 h-3.5" strokeWidth={2} />

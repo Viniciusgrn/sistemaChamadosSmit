@@ -1,4 +1,69 @@
+import { Link } from 'react-router-dom'
+import { Building2, MapPin } from 'lucide-react'
 import { STATUS_META, PRIORITY_META } from "../../pages/chamados/data"
+
+// Abre o mapa de Localidades centralizado neste endereço (mapa do sistema,
+// não o app externo de rotas).
+export const urlNoMapa = (enderecoId) => `/unidades?endereco=${enderecoId}`
+
+/**
+ * Onde é o atendimento.
+ *
+ * Interno = unidade dentro do Paço, onde a própria SMIT fica: resolve sem sair
+ * do prédio e rota não faz sentido. Externo mostra o local e leva pro mapa —
+ * é o dado que o técnico mais usa antes de sair.
+ */
+export const LocalChamado = ({ chamado, compacto = false }) => {
+  const { interno, address, client, enderecoId } = chamado || {}
+
+  if (interno) {
+    return (
+      <span
+        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold tracking-tight leading-none whitespace-nowrap"
+        style={{ backgroundColor: '#ccfbf1', color: '#0f766e' }}
+        title="Atendimento no Paço Municipal"
+      >
+        <Building2 className="w-3 h-3 flex-shrink-0" strokeWidth={2} />
+        Interno
+      </span>
+    )
+  }
+
+  const local = address || client || 'local não informado'
+  const classe = 'inline-flex items-center gap-1 px-1.5 py-0.5 rounded ' +
+    'text-[10px] font-semibold tracking-tight leading-none min-w-0'
+  const estilo = {
+    backgroundColor: '#fef3c7',
+    color: '#b45309',
+    maxWidth: compacto ? undefined : '100%',
+  }
+  const conteudo = (
+    <>
+      <MapPin className="w-3 h-3 flex-shrink-0" strokeWidth={2} />
+      {/* endereço longo trunca com reticências — o texto inteiro fica no title */}
+      <span className="truncate">
+        Externo{compacto ? '' : ` · ${local}`}
+      </span>
+    </>
+  )
+
+  // sem endereço cadastrado não há pra onde levar
+  if (enderecoId == null) {
+    return <span className={classe} style={estilo} title={local}>{conteudo}</span>
+  }
+
+  return (
+    <Link
+      to={urlNoMapa(enderecoId)}
+      onClick={(e) => e.stopPropagation()}
+      className={`${classe} hover:underline`}
+      style={estilo}
+      title={`Ver no mapa — ${local}`}
+    >
+      {conteudo}
+    </Link>
+  )
+}
 
 // Avatar circular com iniciais - sempre centralizado vertical/horizontal
 export const Avatar = ({ initials, color, size = 28 }) => (

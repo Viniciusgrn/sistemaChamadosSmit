@@ -57,7 +57,13 @@ export function adaptaEquipe(e) {
     vagas: e.vagas,
 
     chamado: c
-      ? { id: c.id, codigo: String(c.id), titulo: c.titulo, urgencia: c.urgencia, endereco: c.endereco }
+      ? {
+          id: c.id, codigo: String(c.id), titulo: c.titulo,
+          urgencia: c.urgencia, endereco: c.endereco,
+          // interno = chamado no Paço: a equipe atende sem se deslocar
+          interno: !!c.interno,
+          unidade_nome: c.unidade_nome,
+        }
       : null,
     chamado_codigo: c ? String(c.id) : null,
     chamado_atual_codigo: c ? String(c.id) : null,

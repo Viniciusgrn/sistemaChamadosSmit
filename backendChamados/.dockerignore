@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+*.sqlite3
+.env
+.venv/
+venv/
+
+# uploads vivem em volume, não na imagem
+media/
+
+# planilhas de carga inicial: sobem por bind mount quando for rodar a importação
+*.csv

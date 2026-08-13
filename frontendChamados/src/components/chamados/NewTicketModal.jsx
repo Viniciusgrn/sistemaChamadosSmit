@@ -89,6 +89,8 @@ export default function NewTicketModal({ onClose, onCreate }) {
               && form.secretaria
               && form.divisao
               && form.title.trim()
+              // explicar o chamado é obrigatório: quem atende só tem esse texto
+              && form.description.trim()
               && unidadeEscolhida
 
   const update = (k, v) => setForm((s) => ({ ...s, [k]: v }))
@@ -342,7 +344,7 @@ export default function NewTicketModal({ onClose, onCreate }) {
           </Campo>
 
           {/* Descrição */}
-          <Campo label="Descrição detalhada (opcional)">
+          <Campo label="Descrição detalhada" required hint="explique o problema pra quem vai atender">
             <textarea
               value={form.description}
               onChange={(e) => update('description', e.target.value)}

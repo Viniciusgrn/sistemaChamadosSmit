@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Search, Plus, Map, Building2, Loader2, AlertCircle, List } from 'lucide-react'
 import { useEhDesktop } from '../../hooks/useMediaQuery'
 
@@ -49,6 +50,25 @@ export default function Unidades() {
   const [selecionado, setSelecionado] = useState(null)
   const [drillDownId, setDrillDownId] = useState(null)
   const [editandoEndereco, setEditandoEndereco] = useState(undefined) // undefined=fechado, null=novo, obj=editar
+
+  // ?endereco=<id> vem do selo "Externo · local" do chamado: abre o mapa já
+  // centralizado nele, com o balão aberto.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const alvoId = Number(searchParams.get('endereco')) || null
+
+  useEffect(() => {
+    if (!alvoId || !todosEnderecos.length) return
+    const alvo = todosEnderecos.find((e) => e.id === alvoId)
+    if (alvo) {
+      setSelecionado(alvo)
+      setAba('mapa')
+      setVistaMobile('mapa')
+    }
+    // consome o parâmetro: recarregar depois não deve reabrir o balão
+    searchParams.delete('endereco')
+    setSearchParams(searchParams, { replace: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [alvoId, todosEnderecos])
 
   const enderecosFiltrados = useMemo(() => {
     const q = busca.trim().toLowerCase()

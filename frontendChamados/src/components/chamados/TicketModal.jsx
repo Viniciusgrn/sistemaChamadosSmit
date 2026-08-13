@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { X, Users, Check, Plus, Trash2, Briefcase, PlayCircle, StopCircle, Lock } from 'lucide-react'
-import { Avatar, PriorityCell, StatusChip } from "./shared"
+import { Avatar, PriorityCell, StatusChip, LocalChamado } from "./shared"
 import {
   PRIORITY_META, TERCEIRIZADAS_META, TERC_STATUS_META, TERC_STATUS,
   STATUS_META, STATUS_EDITAVEIS,
@@ -180,7 +180,11 @@ export default function TicketModal({ ticket, teams, onClose, onUpdate, onAssign
             </InfoItem>
 
             <InfoItem label="Endereço" colSpan>
-              <span style={{ color: C.text1 }}>{ticket.address}</span>
+              {/* compacto: o endereço completo já vem logo ao lado */}
+              <span className="inline-flex items-center gap-2 flex-wrap">
+                <LocalChamado chamado={ticket} compacto />
+                <span style={{ color: C.text1 }}>{ticket.address}</span>
+              </span>
             </InfoItem>
           </div>
 

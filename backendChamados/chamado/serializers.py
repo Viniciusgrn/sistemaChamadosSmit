@@ -16,6 +16,9 @@ class ChamadoSerializer(serializers.ModelSerializer):
     )
     # divisão/secretaria do chamado (derivadas da unidade) pro agrupamento no front
     divisao_id = serializers.IntegerField(source='unidade.divisao_id', read_only=True)
+    # id do Endereco: o front usa pra centralizar o mapa de Localidades neste
+    # ponto (link "Externo · local" do chamado)
+    endereco_id = serializers.IntegerField(source='unidade.endereco_id', read_only=True)
     divisao_nome = serializers.CharField(source='unidade.divisao.nome', read_only=True)
     secretaria_sigla = serializers.CharField(source='unidade.divisao.secretaria.sigla', read_only=True)
     # solicitante vem do usuário logado (view); só a TI pode abrir em nome de
@@ -58,7 +61,7 @@ class ChamadoSerializer(serializers.ModelSerializer):
             'status_chamado', 'status_display',
             'unidade_id', 'unidade', 'unidade_nome',
             'divisao_id', 'divisao_nome', 'secretaria_sigla',
-            'endereco', 'interno', 'latitude', 'longitude',
+            'endereco', 'endereco_id', 'interno', 'latitude', 'longitude',
             'equipe_atual', 'terceirizadas',
             'solicitante', 'solicitante_id', 'solicitante_nome', 'nome_solicitante',
             'finalizado_em', 'created_at', 'updated_at',
@@ -68,8 +71,16 @@ class ChamadoSerializer(serializers.ModelSerializer):
         read_only_fields = ['unidade', 'solicitante', 'finalizado_em']
         extra_kwargs = {
             'nome_solicitante': {'required': False},
-            # o título já identifica o chamado; detalhar é opcional
-            'descricao': {'required': False, 'allow_blank': True},
+            # o título é só um rótulo: quem abre (solicitante ou despachante)
+            # precisa explicar o chamado, senão quem atende sai a campo às cegas
+            'descricao': {
+                'required': True,
+                'allow_blank': False,
+                'error_messages': {
+                    'required': 'Explique o que está acontecendo no chamado.',
+                    'blank': 'Explique o que está acontecendo no chamado.',
+                },
+            },
         }
 
     def get_urgencia_efetiva(self, obj):

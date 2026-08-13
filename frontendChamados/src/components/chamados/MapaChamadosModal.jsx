@@ -5,6 +5,7 @@ import 'leaflet/dist/leaflet.css'
 import { X, MapPin, Users, ChevronUp, ChevronDown, Crosshair } from 'lucide-react'
 
 import { PRIORITY_META } from '../../pages/chamados/data'
+import { STATUS_ABERTOS } from './TicketsTable'
 
 const C = {
   surface:  '#ffffff',
@@ -24,17 +25,26 @@ const PRIO_COR = {
   baixa:   '#16a34a',
 }
 
-// Pino genérico colorido (chamado)
-function pinChamado(cor, isUrgent) {
+const ORDEM_PRIO = { baixa: 0, media: 1, alta: 2, urgente: 3 }
+
+// Pino da unidade. `quantidade > 1` escreve o número dentro do pino, pra que
+// dois chamados no mesmo endereço não pareçam um só.
+function pinChamado(cor, isUrgent, quantidade = 1) {
+  const miolo = quantidade > 1
+    ? `<circle cx="16" cy="16" r="8" fill="#ffffff"/>
+       <text x="16" y="20" text-anchor="middle" font-size="11" font-weight="700"
+             font-family="system-ui, sans-serif" fill="${cor}">${quantidade}</text>`
+    : `<circle cx="16" cy="16" r="6" fill="#ffffff"/>`
   const svg = `
     <svg xmlns="http://www.w3.org/2000/svg" width="32" height="44" viewBox="0 0 32 44">
       ${isUrgent ? `<circle cx="16" cy="16" r="15" fill="${cor}" opacity="0.18"/>` : ''}
       <path d="M16 0C7.16 0 0 7.16 0 16c0 12 16 28 16 28s16-16 16-28c0-8.84-7.16-16-16-16z"
             fill="${cor}" stroke="#ffffff" stroke-width="2"/>
-      <circle cx="16" cy="16" r="6" fill="#ffffff"/>
+      ${miolo}
     </svg>`
   return L.icon({
-    iconUrl: `data:image/svg+xml;base64,${btoa(svg)}`,
+    // unescape/encodeURIComponent: btoa quebra com acento no SVG
+    iconUrl: `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`,
     iconSize: [32, 44],
     iconAnchor: [16, 44],
     popupAnchor: [0, -40],
@@ -106,15 +116,45 @@ export default function MapaChamadosModal({ tickets = [], teams = [], onClose })
     return () => document.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  // Chamados não resolvidos com coordenadas
+  // Só o que ainda está em aberto. Antes o corte era `status !== 'resolvido'`,
+  // que deixava cancelado e finalizado entrarem no mapa.
   const chamadosVisiveis = useMemo(
-    () => tickets.filter((t) => t.status !== 'resolvido' && t.latitude && t.longitude),
+    () => tickets.filter(
+      (t) => STATUS_ABERTOS.includes(t.status) && t.latitude && t.longitude
+    ),
     [tickets]
   )
 
-  // Equipes em atendimento (têm chamado ativo + coords)
+  // Uma unidade costuma ter mais de um chamado aberto (o Paço, sempre): sem
+  // agrupar, os pinos empilham no mesmo ponto e só o de cima é clicável.
+  const pontosNoMapa = useMemo(() => {
+    const porLocal = new Map()
+    for (const t of chamadosVisiveis) {
+      const chave = `${t.latitude},${t.longitude}`
+      if (!porLocal.has(chave)) {
+        porLocal.set(chave, {
+          chave,
+          latitude: t.latitude,
+          longitude: t.longitude,
+          address: t.address,
+          client: t.client,
+          chamados: [],
+        })
+      }
+      porLocal.get(chave).chamados.push(t)
+    }
+    // a cor do pino segue o chamado mais urgente daquela unidade
+    return [...porLocal.values()].map((p) => ({
+      ...p,
+      chamados: [...p.chamados].sort((a, b) => ORDEM_PRIO[b.priority] - ORDEM_PRIO[a.priority]),
+    }))
+  }, [chamadosVisiveis])
+
+  // "Em campo" é quem se deslocou: equipe atendendo chamado EXTERNO. Quem está
+  // num chamado do Paço não está em campo, está no próprio prédio — e todas
+  // essas cairiam empilhadas no mesmo pino.
   const equipesEmCampo = useMemo(
-    () => teams.filter((t) => t.activeTicket && t.latitude && t.longitude),
+    () => teams.filter((t) => t.activeTicket && !t.interno && t.latitude && t.longitude),
     [teams]
   )
 
@@ -126,9 +166,9 @@ export default function MapaChamadosModal({ tickets = [], teams = [], onClose })
   }, [chamadosVisiveis])
 
   const pontos = useMemo(() => [
-    ...chamadosVisiveis.map((t) => [t.latitude, t.longitude]),
+    ...pontosNoMapa.map((p) => [p.latitude, p.longitude]),
     ...equipesEmCampo.map((e) => [e.latitude, e.longitude]),
-  ], [chamadosVisiveis, equipesEmCampo])
+  ], [pontosNoMapa, equipesEmCampo])
 
   return (
     <div
@@ -164,9 +204,10 @@ export default function MapaChamadosModal({ tickets = [], teams = [], onClose })
                 Mapa dos chamados
               </h3>
               <div className="text-[11px] mt-0.5 truncate" style={{ color: C.text2 }}>
-                {chamadosVisiveis.length} chamado{chamadosVisiveis.length !== 1 ? 's' : ''} ativo{chamadosVisiveis.length !== 1 ? 's' : ''}
+                {chamadosVisiveis.length} em aberto
                 {' · '}
-                {equipesEmCampo.length} equipe{equipesEmCampo.length !== 1 ? 's' : ''} em campo
+                {pontosNoMapa.length} unidade{pontosNoMapa.length !== 1 ? 's' : ''}
+                {equipesEmCampo.length > 0 && ` · ${equipesEmCampo.length} equipe${equipesEmCampo.length !== 1 ? 's' : ''} em campo`}
               </div>
             </div>
           </div>
@@ -197,48 +238,49 @@ export default function MapaChamadosModal({ tickets = [], teams = [], onClose })
             />
             <Enquadrar pontos={pontos} aoPronto={(fn) => setReenquadrar(() => fn)} />
 
-            {/* Pins de chamados */}
-            {chamadosVisiveis.map((t) => {
-              const cor = PRIO_COR[t.priority] || '#94a3b8'
+            {/* Um pino por unidade com chamado aberto */}
+            {pontosNoMapa.map((p) => {
+              const topo = p.chamados[0]                      // o mais urgente
+              const cor = PRIO_COR[topo.priority] || '#94a3b8'
               return (
                 <Marker
-                  key={`tk-${t.code}`}
-                  position={[t.latitude, t.longitude]}
-                  icon={pinChamado(cor, t.priority === 'urgente')}
-                  zIndexOffset={t.priority === 'urgente' ? 1000 : 0}
+                  key={`un-${p.chave}`}
+                  position={[p.latitude, p.longitude]}
+                  icon={pinChamado(cor, topo.priority === 'urgente', p.chamados.length)}
+                  zIndexOffset={topo.priority === 'urgente' ? 1000 : 0}
                 >
-                  <Popup>
+                  {/* maxWidth menor que o padrão (300) + folga no autoPan:
+                      em 375px o balão do pino perto da borda vazava a tela */}
+                  <Popup maxWidth={240} autoPanPadding={[16, 16]}>
                     {/* max-w evita o balão estourar a lateral em 375px */}
                     <div className="text-[13px] leading-snug min-w-[180px] max-w-[240px]">
-                      <div className="flex items-center gap-1.5 mb-1">
-                        <span
-                          className="font-mono text-[11px] font-semibold"
-                          style={{ color: C.text3 }}
-                        >
-                          {t.code}
-                        </span>
-                        <span
-                          className="px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wider leading-none"
-                          style={{
-                            backgroundColor: PRIORITY_META[t.priority]?.bg,
-                            color: PRIORITY_META[t.priority]?.fg,
-                          }}
-                        >
-                          {PRIORITY_META[t.priority]?.label}
-                        </span>
+                      <div className="font-semibold text-neutral-900">{p.client}</div>
+                      <div className="text-neutral-600 mt-0.5">{p.address}</div>
+                      <div className="text-[10px] uppercase tracking-wider text-neutral-500 mt-2 mb-1">
+                        {p.chamados.length} chamado{p.chamados.length > 1 ? 's' : ''} em aberto
                       </div>
-                      <div className="font-semibold text-neutral-900">{t.title}</div>
-                      <div className="text-neutral-600 mt-0.5">{t.address}</div>
-                      <div className="text-neutral-500 italic text-[11px] mt-1.5">
-                        {t.client}
-                      </div>
-                      {t.team && (
+                      <ul className="list-none p-0 m-0 space-y-1 max-h-[132px] overflow-y-auto">
+                        {p.chamados.map((t) => (
+                          <li key={t.code} className="flex items-start gap-1.5">
+                            <span
+                              className="mt-1 w-1.5 h-1.5 rounded-full flex-shrink-0"
+                              style={{ backgroundColor: PRIO_COR[t.priority] }}
+                              title={PRIORITY_META[t.priority]?.label}
+                            />
+                            <span className="font-mono text-[11px] font-semibold flex-shrink-0" style={{ color: C.text3 }}>
+                              {t.code}
+                            </span>
+                            <span className="text-neutral-700 min-w-0 break-words">{t.title}</span>
+                          </li>
+                        ))}
+                      </ul>
+                      {p.chamados.some((t) => t.team) && (
                         <div
                           className="mt-2 pt-2 border-t border-neutral-200 text-[11px] flex items-center gap-1.5"
                           style={{ color: '#1e3a8a' }}
                         >
                           <Users className="w-3 h-3" strokeWidth={1.75} />
-                          Equipe <strong className="font-semibold">{t.team}</strong> atendendo
+                          equipe em atendimento aqui
                         </div>
                       )}
                     </div>
@@ -255,7 +297,7 @@ export default function MapaChamadosModal({ tickets = [], teams = [], onClose })
                 icon={pinEquipe('#2563eb')}
                 zIndexOffset={2000}
               >
-                <Popup>
+                <Popup maxWidth={240} autoPanPadding={[16, 16]}>
                   <div className="text-[13px] leading-snug min-w-[180px] max-w-[240px]">
                     <div className="flex items-center gap-1.5 mb-1">
                       <Users className="w-3.5 h-3.5" strokeWidth={1.75} style={{ color: '#2563eb' }} />
