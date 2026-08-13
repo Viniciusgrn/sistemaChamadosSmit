@@ -178,8 +178,8 @@ export default function NewTicketModal({ onClose, onCreate }) {
             ) : (
             <BuscaServidor
               selecionado={solicitante}
-              // O chamado tem que ficar no nome de quem pediu. Escolher um
-              // colega da TI esconderia o solicitante real — o backend recusa
+              // Nenhum chamado fica no nome de alguém da TI — inclusive de
+              // quem está abrindo. O backend recusa
               // (chamado/views.perform_create); aqui a lista já explica o porquê.
               ehDaTi={(u) => {
                 const un = u.unidade ? unidadesApi.find((x) => x.id === u.unidade) : null

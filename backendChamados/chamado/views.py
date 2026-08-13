@@ -98,22 +98,6 @@ class ChamadoViewSet(AuditMixin, viewsets.ModelViewSet):
         if solicitante_escolhido and not _eh_dit(user):
             raise PermissionDenied('Só a equipe de TI pode abrir chamado em nome de outra pessoa.')
 
-        # O chamado tem que ficar no nome de quem PEDIU o atendimento. Deixar
-        # abrir em nome de outra pessoa da própria TI abre o atalho de registrar
-        # tudo no nome de um colega em vez de perguntar quem ligou — e aí o
-        # solicitante real desaparece do histórico.
-        #
-        # Abrir para SI MESMO continua valendo: gente da TI também tem problema
-        # no próprio computador, e nesse caso o solicitante está identificado.
-        if (
-            solicitante_escolhido
-            and solicitante_escolhido.id != user.id
-            and eh_da_ti(solicitante_escolhido)
-        ):
-            raise ValidationError({'solicitante_id': (
-                'Não abra chamado em nome de alguém da TI — identifique o '
-                'servidor que pediu o atendimento.'
-            )})
 
         if solicitante_escolhido and unidade is None:
             # herda o local do próprio solicitante: unidade dele, ou a unidade
@@ -151,6 +135,18 @@ class ChamadoViewSet(AuditMixin, viewsets.ModelViewSet):
 
         # de quem é o chamado: o servidor escolhido pela TI, ou quem está logado
         dono = solicitante_escolhido if (solicitante_escolhido and _eh_dit(user)) else user
+
+        # Nenhum chamado fica no nome de alguém da TI.
+        #
+        # A checagem é sobre o DONO final, não sobre o campo enviado: validar só
+        # `solicitante_id` deixaria o atalho de não escolher ninguém e o chamado
+        # cair no nome de quem digitou — que é exatamente o comodismo a evitar.
+        if eh_da_ti(dono):
+            campo = 'solicitante_id' if solicitante_escolhido else 'detail'
+            raise ValidationError({campo: (
+                'O chamado não pode ficar no nome de alguém da TI — identifique '
+                'o servidor que pediu o atendimento.'
+            )})
 
         # nome exibido: o do dono; texto livre só quando a TI digita um nome
         # avulso (ligação de alguém que não tem conta no sistema)
