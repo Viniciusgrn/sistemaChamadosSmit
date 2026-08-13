@@ -78,6 +78,9 @@ if [ -n "$MEDIA" ] && [ -f "$MEDIA" ]; then
     echo "==> Restaurando uploads"
     tar -xzf "$MEDIA" -C /tmp                 # gera /tmp/media
     docker cp /tmp/media/. "$CID_BACK:/app/media/"
+    # docker cp preserva o dono da origem (root). O Django roda como 'django':
+    # sem isto ele lê as plantas antigas mas não consegue substituí-las.
+    docker exec -u root "$CID_BACK" chown -R django:django /app/media
     rm -rf /tmp/media
   else
     echo "!! Backend ainda subindo — copie os uploads depois:" >&2
