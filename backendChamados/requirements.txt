@@ -1,6 +1,18 @@
+# Dependências de produção, com as versões que rodam em desenvolvimento.
+#
+# A lista foi conferida contra o código, não estimada: além dos imports diretos
+# (django, rest_framework, geopy), entram aqui as dependências que o projeto usa
+# por NOME EM STRING e que nenhuma varredura de import encontra —
+#   corsheaders   -> INSTALLED_APPS / MIDDLEWARE
+#   mysqlclient   -> DATABASES['default']['ENGINE']
+#   pillow        -> models.ImageField (plantas dos andares)
+# Ao adicionar dependência nova, acrescente aqui também: o container instala
+# SÓ o que está neste arquivo, e a falta só aparece em runtime.
+
 Django==5.2.14
 djangorestframework==3.17.1
 django-cors-headers==4.9.0
 mysqlclient==2.2.8
 pillow==12.2.0
+geopy==2.4.1
 gunicorn==23.0.0
