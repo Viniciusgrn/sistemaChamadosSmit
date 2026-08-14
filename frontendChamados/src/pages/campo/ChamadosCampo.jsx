@@ -10,6 +10,7 @@ import {
 } from '../../hooks/useChamados'
 import { useEquipesAtivas } from '../../hooks/useEquipes'
 import { PRIORITY_META, STATUS_META } from '../chamados/data'
+import { INT_POR_STATUS } from '../chamados/adapters'
 import { STATUS_ABERTOS } from '../../components/chamados/TicketsTable'
 import { LocalChamado } from '../../components/chamados/shared'
 import EncerrarAtendimentoModal from '../../components/chamados/EncerrarAtendimentoModal'
@@ -84,7 +85,8 @@ export default function ChamadosCampo() {
   const confirmarTroca = ({ status, observacoes }) => {
     const { atual, destino } = troca
     atender.mutate(
-      { id: destino.id, statusAnterior: status, observacoes },
+      // o modal devolve a chave visual ('resolvido'); a API espera o inteiro
+      { id: destino.id, statusAnterior: INT_POR_STATUS[status], observacoes },
       {
         onSuccess: () => { setTroca(null); navigate('/chamado-atual') },
         onError: (e) => setErro(mensagemErro(e, 'Não foi possível trocar de chamado.')),

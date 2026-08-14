@@ -9,7 +9,9 @@ import { useAuth } from '../../contexts/AuthContext'
 import { useChamadosDIT, useEncerrarAtendimento } from '../../hooks/useChamados'
 import { useEquipesAtivas } from '../../hooks/useEquipes'
 import { PRIORITY_META, STATUS_META } from '../chamados/data'
+import { INT_POR_STATUS } from '../chamados/adapters'
 import EncerrarAtendimentoModal from '../../components/chamados/EncerrarAtendimentoModal'
+import { mensagemErro } from '../../api/erros'
 
 const C = {
   bg:      '#f7f7f4',
@@ -35,6 +37,7 @@ export default function ChamadoAtual() {
   const { data: chamados = [], isLoading: carregandoChamados } = useChamadosDIT()
   const encerrar = useEncerrarAtendimento()
   const [encerrando, setEncerrando] = useState(false)
+  const [erro, setErro] = useState('')
 
   const minhaEquipe = useMemo(
     () => equipes.find((e) => e.tecnicoIds?.includes(user?.tecnico_id)),
@@ -210,11 +213,19 @@ export default function ChamadoAtual() {
           chamadoAtual={chamado}
           onClose={() => setEncerrando(false)}
           onConfirmar={({ status, observacoes }) => {
+            setErro('')
             encerrar.mutate(
-              { id: chamado.id, status, observacoes },
-              { onSuccess: () => setEncerrando(false) }
+              // o modal devolve a chave visual ('resolvido'); a API espera o
+              // inteiro do status. Sem converter, volta 400 "Status inválido".
+              { id: chamado.id, status: INT_POR_STATUS[status], observacoes },
+              {
+                onSuccess: () => setEncerrando(false),
+                // sem isto o erro era silencioso: o modal só parava de carregar
+                onError: (e) => setErro(mensagemErro(e, 'Não foi possível encerrar o atendimento.')),
+              }
             )
           }}
+          erro={erro}
           salvando={encerrar.isPending}
         />
       )}
