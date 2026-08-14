@@ -215,7 +215,7 @@ class ChamadoViewSet(AuditMixin, viewsets.ModelViewSet):
         """Equipe que está atendendo este chamado agora (se houver)."""
         return chamado.equipes_atendendo_agora.filter(encerrada_em__isnull=True).first()
 
-    def _encerra_atendimento(self, equipe, novo_status, user, observacoes=''):
+    def _encerra_atendimento(self, equipe, novo_status, user, observacoes='', motivo=None):
         """
         Fecha o atendimento aberto da equipe e deixa o chamado no status
         escolhido. Encerrar o próprio atendimento NÃO é o mesmo que resolver o
@@ -228,8 +228,12 @@ class ChamadoViewSet(AuditMixin, viewsets.ModelViewSet):
         aberto = equipe.atendimentos.filter(encerrado_em__isnull=True).first()
         if aberto:
             aberto.encerrado_em = agora
-            # resolvido de fato vs. entregue pra outro seguir
-            aberto.motivo_encerramento = 0 if novo_status == Chamado.FINALIZADO else 1
+            # resolvido de fato vs. entregue pra outro seguir. `motivo` explícito
+            # existe pro cancelamento, que não é nenhum dos dois.
+            aberto.motivo_encerramento = (
+                motivo if motivo is not None
+                else (0 if novo_status == Chamado.FINALIZADO else 1)
+            )
             aberto.observacoes = observacoes or ''
             aberto.save()
 
@@ -388,6 +392,9 @@ class ChamadoViewSet(AuditMixin, viewsets.ModelViewSet):
         if 'urgencia' in dados:
             extras['urgencia_manual'] = True
 
+        # guardado ANTES do save: depois dele a instância já está atualizada e
+        # não dá mais pra saber se o status mudou nesta requisição
+        status_anterior = chamado.status_chamado
         novo_status = dados.get('status_chamado', chamado.status_chamado)
         # carimba/limpa a data de encerramento conforme o status final
         if novo_status in Chamado.STATUS_ENCERRADOS:
@@ -397,6 +404,21 @@ class ChamadoViewSet(AuditMixin, viewsets.ModelViewSet):
             extras['finalizado_em'] = None
 
         serializer.save(updated_by=user, **extras)
+
+        # Encerrar o chamado tem que encerrar o atendimento junto.
+        #
+        # Sem isto, o status virava "Finalizado" mas a equipe continuava com
+        # `chamado_atual` apontando pra ele e o Atendimento seguia aberto: na
+        # tela do técnico o chamado nunca saía, a equipe não voltava a ficar
+        # livre e as horas de atendimento cresciam para sempre.
+        if novo_status in Chamado.STATUS_ENCERRADOS and status_anterior != novo_status:
+            equipe = self._equipe_no_chamado(chamado)
+            if equipe:
+                self._encerra_atendimento(
+                    equipe, novo_status, user,
+                    # 0 = Resolvido, 3 = Cancelado (Atendimento.MOTIVO_*)
+                    motivo=0 if novo_status == Chamado.FINALIZADO else 3,
+                )
 
     def perform_destroy(self, instance):
         # ninguém apaga chamado: solicitante cancela, DIT arquiva pelo admin
