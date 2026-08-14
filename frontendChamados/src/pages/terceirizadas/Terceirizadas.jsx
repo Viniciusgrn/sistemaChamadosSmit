@@ -6,6 +6,7 @@ import EmpresaDrawer from './EmpresaDrawer'
 import EmpresaModal from './EmpresaModal'
 import { RESP_META } from './data'
 import { useEmpresas } from '../../hooks/useTerceirizadas'
+import { useAuth } from '../../contexts/AuthContext'
 
 const C = {
   bg:        '#f7f7f4',
@@ -23,6 +24,14 @@ export default function Terceirizadas() {
   const { data: todas = [], isLoading, isError, error } = useEmpresas()
 
   const [busca, setBusca] = useState('')
+
+  const { user } = useAuth()
+  // Cadastro é da coordenação. Quem manda é o backend
+  // (core.permissions.CadastroDeTerceirizadaSoCoordenacao); esconder aqui
+  // só evita oferecer um botão que devolveria 403.
+  const podeEditarCadastro = !!(
+    user?.administrativo || user?.eh_chefe || user?.eh_secretario || user?.is_superuser
+  )
   const [filtroResp, setFiltroResp] = useState(null) // id da responsabilidade
   const [selecionada, setSelecionada] = useState(null)
   const [editando, setEditando] = useState(undefined) // undefined=fechado, null=novo, obj=editar
@@ -63,16 +72,18 @@ export default function Terceirizadas() {
             </div>
           </div>
 
-          <button
-            onClick={() => setEditando(null)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium transition-colors"
-            style={{ backgroundColor: C.accent, color: '#fff' }}
-            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = C.accentInk)}
-            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = C.accent)}
-          >
-            <Plus className="w-3.5 h-3.5" strokeWidth={2} />
-            Nova empresa
-          </button>
+          {podeEditarCadastro && (
+            <button
+              onClick={() => setEditando(null)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium transition-colors"
+              style={{ backgroundColor: C.accent, color: '#fff' }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = C.accentInk)}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = C.accent)}
+            >
+              <Plus className="w-3.5 h-3.5" strokeWidth={2} />
+              Nova empresa
+            </button>
+          )}
         </div>
 
         {/* Busca + filtro de responsabilidade */}
@@ -164,7 +175,7 @@ export default function Terceirizadas() {
         <EmpresaDrawer
           empresa={selecionada}
           onClose={() => setSelecionada(null)}
-          onEditar={(empresa) => { setSelecionada(null); setEditando(empresa) }}
+          onEditar={podeEditarCadastro ? (empresa) => { setSelecionada(null); setEditando(empresa) } : undefined}
         />
       )}
 

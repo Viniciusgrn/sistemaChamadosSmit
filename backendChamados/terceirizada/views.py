@@ -1,5 +1,6 @@
-from rest_framework import viewsets
+from rest_framework import permissions, viewsets
 from core.mixins import AuditMixin
+from core.permissions import AprendizSomenteLeitura, CadastroDeTerceirizadaSoCoordenacao
 from .models import EmpresaTerceirizada, ChamadoTerceirizada
 from .serializers import EmpresaTerceirizadaSerializer, ChamadoTerceirizadaSerializer
 
@@ -11,6 +12,13 @@ class EmpresaTerceirizadaViewSet(AuditMixin, viewsets.ModelViewSet):
         .order_by('nome')
     )
     serializer_class = EmpresaTerceirizadaSerializer
+    # declarar aqui SUBSTITUI o DEFAULT_PERMISSION_CLASSES: as padrão precisam
+    # ser repetidas, senão a rota fica mais aberta do que antes
+    permission_classes = [
+        permissions.IsAuthenticated,
+        AprendizSomenteLeitura,
+        CadastroDeTerceirizadaSoCoordenacao,
+    ]
 
     def get_queryset(self):
         qs = super().get_queryset()

@@ -4,6 +4,7 @@ import { Plus, Search, Phone, ArrowUpDown, Loader2, AlertCircle, Pencil } from '
 import { getResumo, getSetoresDistintos } from './data'
 import { useRamais } from '../../hooks/useRamais'
 import RamalModal from './RamalModal'
+import { useAuth } from '../../contexts/AuthContext'
 
 const C = {
   bg:        '#f7f7f4',
@@ -23,6 +24,14 @@ export default function Ramais() {
   const { data: todos = [], isLoading, isError, error } = useRamais()
 
   const [busca, setBusca] = useState('')
+
+  const { user } = useAuth()
+  // Cadastro é da coordenação. Quem manda é o backend
+  // (core.permissions.CadastroDeRamalSoCoordenacao); esconder aqui
+  // só evita oferecer um botão que devolveria 403.
+  const podeEditarCadastro = !!(
+    user?.administrativo || user?.eh_chefe || user?.eh_secretario || user?.is_superuser
+  )
   const [filtroSetor, setFiltroSetor] = useState('')
   const [filtroOcupacao, setFiltroOcupacao] = useState('todos') // 'todos' | 'ocupados' | 'vagos'
   const [ordemPor, setOrdemPor] = useState('numero')
@@ -67,22 +76,24 @@ export default function Ramais() {
             </h1>
             <div className="text-[12px] mt-0.5 flex items-center gap-3 flex-wrap" style={{ color: C.text2 }}>
               <span>{resumo.total} ramais</span>
-              <Resumo cor="#16a34a" count={resumo.ocupados} label="ocupados" />
+              <Resumo cor="#16a34a" count={resumo.ocupados} label="ativos" />
               <Resumo cor="#8b8d96" count={resumo.vagos}    label="vagos" />
               <Resumo cor="#4f46e5" count={resumo.setores}  label="setores" />
             </div>
           </div>
 
-          <button
-            onClick={() => setEditando(null)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium transition-colors"
-            style={{ backgroundColor: C.accent, color: '#fff' }}
-            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = C.accentInk)}
-            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = C.accent)}
-          >
-            <Plus className="w-3.5 h-3.5" strokeWidth={2} />
-            Novo ramal
-          </button>
+          {podeEditarCadastro && (
+            <button
+              onClick={() => setEditando(null)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium transition-colors"
+              style={{ backgroundColor: C.accent, color: '#fff' }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = C.accentInk)}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = C.accent)}
+            >
+              <Plus className="w-3.5 h-3.5" strokeWidth={2} />
+              Novo ramal
+            </button>
+          )}
         </div>
 
         {/* Filtros */}
@@ -110,7 +121,7 @@ export default function Ramais() {
             onChange={setFiltroOcupacao}
             options={[
               { value: 'todos',    label: 'Todos' },
-              { value: 'ocupados', label: 'Ocupados' },
+              { value: 'ocupados', label: 'Ativos' },
               { value: 'vagos',    label: 'Vagos' },
             ]}
           />
@@ -161,7 +172,7 @@ export default function Ramais() {
             </thead>
             <tbody style={{ backgroundColor: C.surface }}>
               {filtrados.map((r) => (
-                <Linha key={r.id} ramal={r} onEditar={() => setEditando(r)} />
+                <Linha key={r.id} ramal={r} onEditar={podeEditarCadastro ? () => setEditando(r) : undefined} />
               ))}
             </tbody>
           </table>
@@ -267,6 +278,8 @@ function Linha({ ramal: r, onEditar }) {
         </span>
       </td>
       <td className="px-2 py-2.5 text-right">
+        {/* sem handler = sem permissao: a tela vira consulta */}
+        {onEditar && (
         <button
           onClick={onEditar}
           className="opacity-0 group-hover:opacity-100 w-7 h-7 inline-flex items-center justify-center rounded transition-all"
@@ -277,6 +290,7 @@ function Linha({ ramal: r, onEditar }) {
         >
           <Pencil className="w-3.5 h-3.5" strokeWidth={1.75} />
         </button>
+        )}
       </td>
     </tr>
   )

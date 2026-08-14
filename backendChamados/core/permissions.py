@@ -35,18 +35,17 @@ class AprendizSomenteLeitura(permissions.BasePermission):
         return getattr(view, 'action', None) in self.ACOES_LIBERADAS
 
 
-class CadastroDeTecnicoSoCoordenacao(permissions.BasePermission):
+class EscritaSoCoordenacao(permissions.BasePermission):
     """
-    Só a coordenação mexe no cadastro de técnico.
+    Cadastro que o técnico consulta mas não mantém.
 
-    Não é questão de organização de tela: entre os campos editáveis está a
-    responsabilidade "Administrativo" (Tecnico.RESPONSABILIDADE_CHOICES = 3), e
-    quem a possui passa em `coordena()` — o que muda o perfil operacional para
-    gestão. Um técnico com acesso de escrita aqui se promoveria sozinho.
+    Leitura fica liberada — o técnico precisa da lista no dia a dia (achar um
+    ramal, ver qual empresa atende o quê). Criar, alterar e apagar é da
+    coordenação: administrativo, chefe de divisão, secretário ou superusuário.
 
-    Ler continua liberado: a lista de técnicos é usada para montar equipe.
+    Use como classe-base e troque a `message` pelo cadastro em questão.
     """
-    message = 'Só o administrativo ou a chefia altera o cadastro de técnicos.'
+    message = 'Só o administrativo ou a chefia altera este cadastro.'
 
     def has_permission(self, request, view):
         if request.method in METODOS_LEITURA:
@@ -55,3 +54,23 @@ class CadastroDeTecnicoSoCoordenacao(permissions.BasePermission):
         if not user or not user.is_authenticated:
             return False
         return coordena(user)
+
+
+class CadastroDeTecnicoSoCoordenacao(EscritaSoCoordenacao):
+    """
+    Aqui o motivo vai além de organização: entre os campos editáveis está a
+    responsabilidade "Administrativo" (Tecnico.RESPONSABILIDADE_CHOICES = 3), e
+    quem a possui passa em `coordena()` — o que muda o perfil operacional para
+    gestão. Um técnico com escrita aqui se promoveria sozinho.
+    """
+    message = 'Só o administrativo ou a chefia altera o cadastro de técnicos.'
+
+
+class CadastroDeTerceirizadaSoCoordenacao(EscritaSoCoordenacao):
+    """Empresas contratadas — quem contrata não é quem atende o chamado."""
+    message = 'Só o administrativo ou a chefia cadastra empresas terceirizadas.'
+
+
+class CadastroDeRamalSoCoordenacao(EscritaSoCoordenacao):
+    """Lista telefônica da prefeitura: o técnico consulta, não mantém."""
+    message = 'Só o administrativo ou a chefia altera os ramais.'
