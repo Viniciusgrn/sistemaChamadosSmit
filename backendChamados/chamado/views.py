@@ -147,7 +147,15 @@ class ChamadoViewSet(AuditMixin, viewsets.ModelViewSet):
         # A checagem é sobre o DONO final, não sobre o campo enviado: validar só
         # `solicitante_id` deixaria o atalho de não escolher ninguém e o chamado
         # cair no nome de quem digitou — que é exatamente o comodismo a evitar.
-        if eh_da_ti(dono):
+        #
+        # A exceção é quem NÃO TEM CONTA (terceirizado, visitante, estagiário
+        # sem login): aí o chamado fica no registro de quem digitou, mas o nome
+        # de quem pediu vai em `nome_solicitante`. O solicitante está
+        # identificado — que é o que a regra exige —, só não tem cadastro.
+        nome_informado = (serializer.validated_data.get('nome_solicitante') or '').strip()
+        identificou_sem_conta = bool(nome_informado) and _eh_dit(user) and not solicitante_escolhido
+
+        if eh_da_ti(dono) and not identificou_sem_conta:
             campo = 'solicitante_id' if solicitante_escolhido else 'detail'
             raise ValidationError({campo: (
                 'O chamado não pode ficar no nome de alguém da TI — identifique '
@@ -156,7 +164,6 @@ class ChamadoViewSet(AuditMixin, viewsets.ModelViewSet):
 
         # nome exibido: o do dono; texto livre só quando a TI digita um nome
         # avulso (ligação de alguém que não tem conta no sistema)
-        nome_informado = (serializer.validated_data.get('nome_solicitante') or '').strip()
         if solicitante_escolhido:
             nome = dono.nome_completo or dono.username
         elif _eh_dit(user) and nome_informado:
