@@ -48,15 +48,22 @@ Django funcionar sem CORS — em produção a lista de CORS fica vazia de propó
 | `deploy/exportar-banco.sh` | dump do banco + uploads, na máquina de dev |
 | `deploy/importar-banco.sh` | restaura o pacote na VPS (compose ou swarm) |
 
-## Este ambiente
+## Ambientes
 
-| | |
-|---|---|
-| VPS | `2.24.89.242` — Hostinger KVM4: 4 vCPU, 16 GB, 200 GB NVMe |
-| Domínio | `os.bragancapta.sp.gov.br` |
+| | servidor definitivo | VPS de transição |
+|---|---|---|
+| IP | `177.107.71.189` (prefeitura) | `2.24.89.242` (Hostinger KVM4) |
+| SSH | **porta 2210** | porta 22 |
+| SO | Ubuntu (OpenSSH 10.2) | Ubuntu 24.04 |
+| nginx | instalado por `instalar-nginx-host.sh` | já existia, com outros 8 sites |
+| Domínio | `os.braganca.sp.gov.br` (zona Cloudflare) | idem, enquanto não vira |
 
-Com 16 GB não se cria swap (o script de provisionamento pula sozinho acima de
-4 GB de RAM).
+O domínio é o mesmo nos dois: a troca é um registro A na Cloudflare, e por isso
+os dois nunca respondem ao mesmo tempo — ver "Migrar para o servidor definitivo".
+
+**A porta do SSH é 2210, não 22.** O `provisionar-vps.sh --dedicada` detecta a
+porta real antes de ativar o firewall; nunca libere "OpenSSH" às cegas nessa
+máquina, porque isso abriria a 22 e fecharia a 2210 — trancando o acesso.
 
 ## Servidor novo, do zero
 
@@ -90,6 +97,77 @@ isso, o nginx entrega essas requisições ao primeiro site carregado.
 
 Ao final ele imprime a sequência do DNS e do certificado. Nada de certbot antes
 de o domínio resolver para esta máquina.
+
+## Migrar para o servidor definitivo
+
+Da VPS da Hostinger (`2.24.89.242`) para o servidor da prefeitura
+(`177.107.71.189`), com o **mesmo domínio**. A ordem existe para que o sistema
+só saia do ar no instante da virada de DNS.
+
+**1. Preparar o servidor novo** (nada disso afeta quem está usando hoje):
+
+```bash
+git clone <repo> /opt/sistema-chamados && cd /opt/sistema-chamados
+sudo bash deploy/provisionar-vps.sh --dedicada
+cp .env.example .env      # gerar os três segredos aqui — NÃO copie os da VPS
+docker compose up -d --build
+sudo bash deploy/instalar-nginx-host.sh os.braganca.sp.gov.br 8003
+```
+
+**2. Levar o banco.** No servidor ANTIGO, gerar o pacote (dump + uploads):
+
+```bash
+cd ~/smit/sistemaChamadosSmit
+docker compose exec -T db mysqldump -u root -p"$DB_ROOT_PASSWORD"   --single-transaction --no-tablespaces --set-gtid-purged=OFF   sistema_chamados | gzip > /root/banco.sql.gz
+docker compose cp backend:/app/media /root/media && tar -czf /root/media.tar.gz -C /root media
+```
+
+Enviar para o novo — repare no **`-P 2210`** maiúsculo, que é a porta do SSH:
+
+```bash
+scp -P 2210 /root/banco.sql.gz /root/media.tar.gz root@177.107.71.189:/root/
+```
+
+E importar, já no servidor novo:
+
+```bash
+cd /opt/sistema-chamados
+bash deploy/importar-banco.sh /root/banco.sql.gz /root/media.tar.gz
+```
+
+A conferência no fim tem que fechar com a mesma contagem do servidor antigo.
+
+**3. Testar sem mexer no DNS**, pelo cabeçalho Host:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}
+' -H 'Host: os.braganca.sp.gov.br' http://127.0.0.1/
+```
+
+Para clicar na tela antes da virada, aponte o domínio no `hosts` da sua máquina
+para `177.107.71.189` — e **apague a linha depois**.
+
+**4. Virar o DNS.** Na Cloudflare, o registro A de `os` passa de `2.24.89.242`
+para `177.107.71.189`. Mantenha a nuvem **cinza** (DNS only), senão o certbot
+não valida. Confirme antes de seguir:
+
+```bash
+dig +short os.braganca.sp.gov.br @8.8.8.8    # tem que responder 177.107.71.189
+```
+
+**5. Emitir o certificado** no servidor novo, e só então ligar o HTTPS:
+
+```bash
+certbot --nginx -d os.braganca.sp.gov.br
+sed -i 's/^DJANGO_HTTPS=0/DJANGO_HTTPS=1/' .env && docker compose up -d backend
+```
+
+**6. Desligar o antigo** só depois de alguns dias de uso normal — resolvedores
+com cache antigo ainda chegam lá. Enquanto isso ele serve uma cópia velha do
+banco, então trate como somente-leitura e avise quem usa.
+
+> Não gere segredos novos copiando o `.env` da VPS: aquele arquivo já circulou
+> por dois servidores. Gere na máquina nova, como está no topo do `.env.example`.
 
 ## Subir pela primeira vez
 

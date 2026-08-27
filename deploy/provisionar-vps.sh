@@ -65,16 +65,39 @@ if command -v ufw >/dev/null 2>&1 && ufw status 2>/dev/null | head -1 | grep -qi
   ufw allow 80/tcp
   ufw allow 443/tcp
 elif [ "$DEDICADA" -eq 1 ]; then
-  # Máquina dedicada a este sistema: ativar é seguro, porque não há serviço de
-  # terceiro para ficar de fora. 3306 e 8003 ficam fechados de propósito — são
-  # internos ao compose e ao loopback, ninguém precisa alcançá-los de fora.
-  echo "Máquina dedicada: ativando ufw com SSH, 80 e 443."
-  apt-get install -y ufw
-  ufw allow OpenSSH
-  ufw allow 80/tcp
-  ufw allow 443/tcp
-  ufw --force enable
-  ufw status verbose
+  # Máquina dedicada: ativar é seguro, porque não há serviço de terceiro para
+  # ficar de fora. 3306 e 8003 seguem fechados de propósito — são internos ao
+  # compose e ao loopback.
+  #
+  # A porta do SSH é DETECTADA, nunca assumida: `ufw allow OpenSSH` libera a 22,
+  # e num servidor com SSH em outra porta isso tranca você para fora na hora em
+  # que o firewall sobe. Em Ubuntu recente o sshd é ativado por socket, então a
+  # porta pode estar no systemd e não no sshd_config — daí as três fontes.
+  PORTAS_SSH=$(
+    {
+      ss -lntpH 2>/dev/null | awk '/sshd|ssh\.socket/ {n=split($4,a,":"); print a[n]}'
+      grep -hoP '^\s*Port\s+\K[0-9]+' /etc/ssh/sshd_config /etc/ssh/sshd_config.d/*.conf 2>/dev/null
+      grep -hoP '^\s*ListenStream=.*:\K[0-9]+' /etc/systemd/system/ssh.socket.d/*.conf 2>/dev/null
+    } | sort -un
+  )
+
+  if [ -z "$PORTAS_SSH" ]; then
+    avisar "Não consegui descobrir a porta do SSH — NÃO vou ativar o firewall."
+    echo "   Ativar às cegas pode te deixar sem acesso ao servidor."
+    echo "   Descubra com 'ss -lntp | grep ssh' e libere a porta manualmente:"
+    echo "       ufw allow <porta>/tcp && ufw allow 80/tcp && ufw allow 443/tcp && ufw enable"
+  else
+    echo "Máquina dedicada: ativando ufw."
+    apt-get install -y ufw
+    for p in $PORTAS_SSH; do
+      echo "   liberando SSH na porta $p"
+      ufw allow "$p/tcp"
+    done
+    ufw allow 80/tcp
+    ufw allow 443/tcp
+    ufw --force enable
+    ufw status verbose
+  fi
 else
   avisar "ufw inativo ou ausente — NÃO vou ativar."
   echo "   Numa máquina COMPARTILHADA, ativar agora bloquearia as portas dos"
