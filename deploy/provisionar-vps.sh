@@ -16,6 +16,11 @@ if [ "$(id -u)" -ne 0 ]; then
   exit 1
 fi
 
+# --dedicada: a máquina é só deste sistema, então o firewall pode ser ativado
+# sem risco de cortar serviço de terceiro. Sem a flag, o script não ativa nada.
+DEDICADA=0
+[ "${1:-}" = "--dedicada" ] && DEDICADA=1
+
 avisar() { printf '\n\033[33m!! %s\033[0m\n' "$1"; }
 
 echo "==> Índice de pacotes"
@@ -54,17 +59,30 @@ fi
 # e nesta VPS isso significa os outros sistemas. Ativar firewall exige antes
 # mapear todas as portas em uso, e essa decisão é sua.
 # ---------------------------------------------------------------------------
-echo "==> Firewall (somente diagnóstico)"
+echo "==> Firewall"
 if command -v ufw >/dev/null 2>&1 && ufw status 2>/dev/null | head -1 | grep -qi "^Status: active"; then
   echo "ufw já ativo. Liberando 80/443 (adicionar regra ALLOW não bloqueia nada):"
   ufw allow 80/tcp
   ufw allow 443/tcp
+elif [ "$DEDICADA" -eq 1 ]; then
+  # Máquina dedicada a este sistema: ativar é seguro, porque não há serviço de
+  # terceiro para ficar de fora. 3306 e 8003 ficam fechados de propósito — são
+  # internos ao compose e ao loopback, ninguém precisa alcançá-los de fora.
+  echo "Máquina dedicada: ativando ufw com SSH, 80 e 443."
+  apt-get install -y ufw
+  ufw allow OpenSSH
+  ufw allow 80/tcp
+  ufw allow 443/tcp
+  ufw --force enable
+  ufw status verbose
 else
   avisar "ufw inativo ou ausente — NÃO vou ativar."
-  echo "   Ativar agora bloquearia as portas dos seus outros sistemas."
-  echo "   Se quiser firewall depois, mapeie as portas em uso com:"
-  echo "       ss -lntp"
-  echo "   libere TODAS elas, e só então ative."
+  echo "   Numa máquina COMPARTILHADA, ativar agora bloquearia as portas dos"
+  echo "   outros sistemas. Mapeie o que está em uso com:  ss -lntp"
+  echo "   libere TODAS essas portas, e só então ative."
+  echo
+  echo "   Se esta máquina é dedicada a este sistema, rode com:"
+  echo "       sudo bash $0 --dedicada"
 fi
 
 # ---------------------------------------------------------------------------

@@ -34,7 +34,10 @@ Django funcionar sem CORS — em produção a lista de CORS fica vazia de propó
 | `backendChamados/requirements.txt` | versões congeladas do que já estava instalado |
 | `frontendChamados/Dockerfile` | build do Vite → nginx |
 | `deploy/nginx/default.conf` | nginx DE DENTRO do container (SPA + rotas) |
-| `deploy/nginx/host-chamados.conf` | site pro nginx DO HOST — é o que expõe o sistema |
+| `deploy/nginx/host-chamados.conf` | site do nginx DO HOST na VPS atual (Hostinger) |
+| `deploy/nginx/host-chamados.template.conf` | modelo do site, para servidor novo |
+| `deploy/nginx/catchall.conf` | fecha 444 em domínio desconhecido |
+| `deploy/instalar-nginx-host.sh` | nginx + certbot + site, em máquina limpa |
 | `deploy/nginx/proxy_params_chamados` | cabeçalhos de proxy pro Django |
 | `deploy/verificar-vps.sh` | diagnóstico read-only: o que já roda na VPS e o que conflita |
 | `deploy/provisionar-vps.sh` | prepara a máquina: Docker, firewall, fuso (swap só se a RAM for baixa) |
@@ -54,6 +57,39 @@ Django funcionar sem CORS — em produção a lista de CORS fica vazia de propó
 
 Com 16 GB não se cria swap (o script de provisionamento pula sozinho acima de
 4 GB de RAM).
+
+## Servidor novo, do zero
+
+Quando a máquina é **dedicada a este sistema** e ainda não tem nginx nenhum
+(diferente da VPS atual, que já hospedava outros sites):
+
+```bash
+git clone <repo> /opt/sistema-chamados && cd /opt/sistema-chamados
+sudo bash deploy/provisionar-vps.sh --dedicada
+```
+
+A flag `--dedicada` liga o firewall com SSH, 80 e 443 — seguro aqui, porque não
+há serviço de terceiro para ficar de fora. Sem ela o script não ativa nada.
+
+Depois o `.env` (ver a seção abaixo) e a stack:
+
+```bash
+docker compose up -d --build
+```
+
+E o nginx do host, que é a porta de entrada:
+
+```bash
+sudo bash deploy/instalar-nginx-host.sh <dominio> 8003
+```
+
+Ele instala nginx e certbot, gera o arquivo do site a partir do modelo,
+desativa a página "Welcome to nginx" e coloca no lugar dela um **catch-all**
+que fecha a conexão (444) para quem chega por um domínio desconhecido — sem
+isso, o nginx entrega essas requisições ao primeiro site carregado.
+
+Ao final ele imprime a sequência do DNS e do certificado. Nada de certbot antes
+de o domínio resolver para esta máquina.
 
 ## Subir pela primeira vez
 
