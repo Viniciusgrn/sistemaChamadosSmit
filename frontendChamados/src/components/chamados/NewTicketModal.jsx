@@ -43,13 +43,6 @@ export default function NewTicketModal({ onClose, onCreate }) {
     [secretariasApi]
   )
 
-  const divisoes = useMemo(() => {
-    if (!form.secretaria) return []
-    return divisoesApi
-      .filter((d) => String(d.secretaria?.id) === String(form.secretaria))
-      .sort((a, b) => a.nome.localeCompare(b.nome))
-  }, [divisoesApi, form.secretaria])
-
   // unidades da divisão escolhida (uma divisão pode ter mais de uma)
   const unidades = useMemo(() => {
     if (!form.divisao) return []
@@ -62,6 +55,87 @@ export default function NewTicketModal({ onClose, onCreate }) {
     () => unidades.find((u) => String(u.id) === String(form.unidade_id)) || null,
     [unidades, form.unidade_id]
   )
+
+  // ---- busca em qualquer direção ----
+  // As listas NÃO exigem mais o pai escolhido: buscar a divisão preenche a
+  // secretaria, buscar a unidade preenche as duas. Com o pai escolhido, elas
+  // afunilam como antes.
+  const itensSecretaria = useMemo(() => secretarias.map((s) => ({
+    id: String(s.id),
+    principal: `${s.sigla} - ${s.nome}`,
+    secundario: '',
+    blob: `${s.sigla} ${s.nome}`.toLowerCase(),
+  })), [secretarias])
+
+  const itensDivisao = useMemo(() => {
+    const base = form.secretaria
+      ? divisoesApi.filter((d) => String(d.secretaria?.id) === String(form.secretaria))
+      : divisoesApi
+    return [...base]
+      .sort((a, b) => a.nome.localeCompare(b.nome))
+      .map((d) => ({
+        id: String(d.id),
+        principal: d.nome,
+        secundario: d.secretaria?.sigla || '',
+        blob: `${d.nome} ${d.sigla || ''} ${d.secretaria?.sigla || ''} ${d.secretaria?.nome || ''}`.toLowerCase(),
+      }))
+  }, [divisoesApi, form.secretaria])
+
+  const itensUnidade = useMemo(() => {
+    let base = unidadesApi
+    if (form.divisao) {
+      base = base.filter((u) => String(u.divisao?.id ?? u.divisao) === String(form.divisao))
+    } else if (form.secretaria) {
+      const divsDaSec = new Set(
+        divisoesApi
+          .filter((d) => String(d.secretaria?.id) === String(form.secretaria))
+          .map((d) => String(d.id))
+      )
+      base = base.filter((u) => divsDaSec.has(String(u.divisao?.id ?? u.divisao)))
+    }
+    return [...base]
+      .sort((a, b) => a.nome.localeCompare(b.nome))
+      .map((u) => {
+        const divId = u.divisao?.id ?? u.divisao
+        const div = divisoesApi.find((d) => d.id === divId)
+        return {
+          id: String(u.id),
+          principal: u.nome,
+          secundario: div ? `${div.secretaria?.sigla ? div.secretaria.sigla + ' · ' : ''}${div.nome}` : '',
+          blob: `${u.nome} ${div?.nome || ''} ${div?.secretaria?.sigla || ''}`.toLowerCase(),
+        }
+      })
+  }, [unidadesApi, divisoesApi, form.secretaria, form.divisao])
+
+  const secretariaSel = secretarias.find((s) => String(s.id) === String(form.secretaria))
+  const divisaoSel = divisoesApi.find((d) => String(d.id) === String(form.divisao))
+
+  const escolherSecretaria = (id) =>
+    setForm((s) => ({ ...s, secretaria: String(id), divisao: '', unidade_id: '' }))
+
+  const escolherDivisao = (id) => {
+    const d = divisoesApi.find((x) => String(x.id) === String(id))
+    setForm((s) => ({
+      ...s,
+      divisao: String(id),
+      // caminho inverso: a divisão carrega a secretaria junto
+      secretaria: d?.secretaria?.id ? String(d.secretaria.id) : s.secretaria,
+      unidade_id: '',
+    }))
+  }
+
+  const escolherUnidade = (id) => {
+    const u = unidadesApi.find((x) => String(x.id) === String(id))
+    const divId = u?.divisao?.id ?? u?.divisao
+    const d = divisoesApi.find((x) => x.id === divId)
+    setForm((s) => ({
+      ...s,
+      unidade_id: String(id),
+      // caminho inverso completo: unidade carrega divisão e secretaria
+      divisao: divId ? String(divId) : s.divisao,
+      secretaria: d?.secretaria?.id ? String(d.secretaria.id) : s.secretaria,
+    }))
+  }
 
   // divisão com uma unidade só: já deixa marcada (o campo continua visível)
   useEffect(() => {
@@ -232,70 +306,49 @@ export default function NewTicketModal({ onClose, onCreate }) {
             </div>
           )}
 
-          {/* Secretaria + Divisão (cascata) */}
+          {/* Secretaria + Divisão — busca nos DOIS sentidos: escolher a
+              secretaria afunila a divisão, e buscar a divisão direto preenche
+              a secretaria sozinha */}
           <div className="grid grid-cols-2 gap-4">
             <Campo label="Secretaria" required>
-              <select
-                value={form.secretaria}
-                onChange={(e) => setForm((s) => ({ ...s, secretaria: e.target.value, divisao: '' }))}
-                className="w-full px-3 py-2 text-[13px] rounded-md focus:outline-none"
-                style={{ backgroundColor: C.surface2, border: `1px solid ${C.border}`, color: form.secretaria ? C.text1 : C.text3 }}
-              >
-                <option value="">Selecione…</option>
-                {secretarias.map((s) => (
-                  <option key={s.id} value={s.id}>{s.sigla} - {s.nome}</option>
-                ))}
-              </select>
+              <ComboBusca
+                selecionado={secretariaSel ? `${secretariaSel.sigla} - ${secretariaSel.nome}` : null}
+                onLimpar={() => setForm((s) => ({ ...s, secretaria: '', divisao: '', unidade_id: '' }))}
+                onEscolher={escolherSecretaria}
+                itens={itensSecretaria}
+                placeholder="Buscar secretaria…"
+              />
             </Campo>
 
             <Campo
               label="Divisão"
               required
-              hint={form.secretaria ? `${divisoes.length} disponível(is)` : 'Escolha a secretaria primeiro'}
+              hint={form.secretaria ? `${itensDivisao.length} na secretaria` : 'buscar preenche a secretaria'}
             >
-              <select
-                value={form.divisao}
-                onChange={(e) => { update('divisao', e.target.value); update('unidade_id', '') }}
-                disabled={!form.secretaria}
-                className="w-full px-3 py-2 text-[13px] rounded-md focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
-                style={{ backgroundColor: C.surface2, border: `1px solid ${C.border}`, color: form.divisao ? C.text1 : C.text3 }}
-              >
-                <option value="">Selecione…</option>
-                {divisoes.map((d) => (
-                  <option key={d.id} value={d.id}>{d.nome}</option>
-                ))}
-              </select>
+              <ComboBusca
+                selecionado={divisaoSel ? divisaoSel.nome : null}
+                onLimpar={() => setForm((s) => ({ ...s, divisao: '', unidade_id: '' }))}
+                onEscolher={escolherDivisao}
+                itens={itensDivisao}
+                placeholder="Buscar divisão…"
+              />
             </Campo>
           </div>
 
-          {/* Unidade - só aparece quando a divisão tem mais de uma */}
-          {/* Unidade é sempre escolhida numa lista: toda unidade atendida pela
-              prefeitura está cadastrada (ao contrário das pessoas) */}
+          {/* Unidade — buscar direto preenche divisão e secretaria */}
           <Campo
             label="Unidade"
             required
-            hint={
-              !form.divisao
-                ? 'escolha a divisão primeiro'
-                : `${unidades.length} nesta divisão`
-            }
+            hint={form.divisao ? `${itensUnidade.length} na divisão` : 'buscar preenche divisão e secretaria'}
           >
-            <select
-              value={form.unidade_id || ''}
-              onChange={(e) => update('unidade_id', e.target.value)}
-              disabled={!form.divisao}
-              className="w-full px-3 py-2 text-[13px] rounded-md focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
-              style={{ backgroundColor: C.surface2, border: `1px solid ${C.border}`, color: form.unidade_id ? C.text1 : C.text3 }}
-            >
-              <option value="">
-                {form.divisao && unidades.length === 0
-                  ? 'Esta divisão não tem unidade cadastrada'
-                  : 'Selecione…'}
-              </option>
-              {unidades.map((u) => (
-                <option key={u.id} value={u.id}>{u.nome}</option>
-              ))}
-            </select>
+            <ComboBusca
+              selecionado={unidadeEscolhida ? unidadeEscolhida.nome : null}
+              onLimpar={() => setForm((s) => ({ ...s, unidade_id: '' }))}
+              onEscolher={escolherUnidade}
+              itens={itensUnidade}
+              placeholder="Buscar unidade (escola, posto, setor)…"
+              vazio={form.divisao ? 'Esta divisão não tem unidade cadastrada.' : 'Nenhuma unidade encontrada.'}
+            />
           </Campo>
 
           {/* Endereço - derivado, read-only */}
@@ -414,6 +467,84 @@ function Campo({ label, required, hint, children }) {
         {hint && <span className="text-[10px]" style={{ color: C.text3 }}>{hint}</span>}
       </div>
       {children}
+    </div>
+  )
+}
+
+// Caixa de busca com escolha única — mesmo desenho do BuscaServidor.
+// Escolhido, vira um chip com X pra trocar; vazio, é busca com lista.
+// Abre no foco mostrando os primeiros itens: dá pra usar como um select
+// comum, só que filtrável.
+function ComboBusca({ selecionado, onLimpar, onEscolher, itens, placeholder, vazio }) {
+  const [busca, setBusca] = useState('')
+  const [aberto, setAberto] = useState(false)
+
+  const q = busca.trim().toLowerCase()
+  const filtrados = (q ? itens.filter((i) => i.blob.includes(q)) : itens).slice(0, 30)
+
+  if (selecionado) {
+    return (
+      <div
+        className="flex items-center justify-between gap-2 px-3 py-2 text-[13px] rounded-md"
+        style={{ backgroundColor: '#eef0ff', border: '1px solid #d4d6ff', color: C.accentInk }}
+      >
+        <span className="truncate font-medium">{selecionado}</span>
+        <button
+          type="button"
+          onClick={() => { onLimpar(); setBusca('') }}
+          style={{ color: C.accentInk }}
+          aria-label="Trocar"
+        >
+          <X className="w-3.5 h-3.5" strokeWidth={2} />
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="relative">
+      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5" strokeWidth={1.75} style={{ color: C.text3 }} />
+      <input
+        type="text"
+        value={busca}
+        onChange={(e) => { setBusca(e.target.value); setAberto(true) }}
+        onFocus={() => setAberto(true)}
+        onBlur={() => setTimeout(() => setAberto(false), 150)}
+        placeholder={placeholder}
+        className="w-full pl-8 pr-3 py-2 text-[13px] rounded-md focus:outline-none"
+        style={{ backgroundColor: C.surface2, border: `1px solid ${C.border}`, color: C.text1 }}
+      />
+      {aberto && (
+        <ul
+          className="absolute z-20 left-0 right-0 mt-1 max-h-52 overflow-y-auto list-none p-1 m-0 rounded-md"
+          style={{ backgroundColor: C.surface, border: `1px solid ${C.border2}`, boxShadow: '0 8px 24px -8px rgba(20,22,36,0.18)' }}
+        >
+          {filtrados.length === 0 ? (
+            <li className="px-3 py-2 text-[12px]" style={{ color: C.text3 }}>
+              {vazio || 'Nada encontrado.'}
+            </li>
+          ) : (
+            filtrados.map((i) => (
+              <li key={i.id}>
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => { onEscolher(i.id); setAberto(false); setBusca('') }}
+                  className="w-full text-left px-3 py-2 rounded text-[13px] transition-colors"
+                  style={{ color: C.text1 }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = C.hover)}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                >
+                  <span className="font-medium">{i.principal}</span>
+                  {i.secundario && (
+                    <span className="text-[11px] ml-2" style={{ color: C.text3 }}>{i.secundario}</span>
+                  )}
+                </button>
+              </li>
+            ))
+          )}
+        </ul>
+      )}
     </div>
   )
 }
