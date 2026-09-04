@@ -26,6 +26,9 @@ export default function NewTicketModal({ onClose, onCreate }) {
     title:               '',
     priority:            'baixa',
     description:         '',
+    // nasce aberto; 'agendado' exige data/hora (agendadoPara)
+    situacao:            'aberto',
+    agendadoPara:        '',
   })
   // servidor escolhido como solicitante (o chamado passa a ser dele)
   const [solicitante, setSolicitante] = useState(null)
@@ -166,6 +169,8 @@ export default function NewTicketModal({ onClose, onCreate }) {
               // explicar o chamado é obrigatório: quem atende só tem esse texto
               && form.description.trim()
               && unidadeEscolhida
+              // agendar sem data não agenda nada (o backend também recusa)
+              && (form.situacao !== 'agendado' || form.agendadoPara)
 
   const update = (k, v) => setForm((s) => ({ ...s, [k]: v }))
 
@@ -186,6 +191,8 @@ export default function NewTicketModal({ onClose, onCreate }) {
       priority:    form.priority,
       description: form.description.trim(),
       nome_solicitante: form.usuario_solicitante.trim(),
+      status:      form.situacao,
+      agendadoPara: form.situacao === 'agendado' ? form.agendadoPara : null,
     })
   }
 
@@ -403,6 +410,30 @@ export default function NewTicketModal({ onClose, onCreate }) {
               <option value="media">Média</option>
               <option value="baixa">Baixa</option>
             </select>
+          </Campo>
+
+          {/* Aberto agora ou visita marcada */}
+          <Campo label="Situação">
+            <div className="flex items-center gap-2">
+              <select
+                value={form.situacao}
+                onChange={(e) => update('situacao', e.target.value)}
+                className="px-3 py-2 text-[13px] rounded-md focus:outline-none"
+                style={{ backgroundColor: C.surface2, border: `1px solid ${C.border}`, color: C.text1 }}
+              >
+                <option value="aberto">Aberto</option>
+                <option value="agendado">Agendado</option>
+              </select>
+              {form.situacao === 'agendado' && (
+                <input
+                  type="datetime-local"
+                  value={form.agendadoPara}
+                  onChange={(e) => update('agendadoPara', e.target.value)}
+                  className="flex-1 px-3 py-2 text-[13px] rounded-md focus:outline-none"
+                  style={{ backgroundColor: C.surface2, border: `1px solid ${C.border}`, color: C.text1 }}
+                />
+              )}
+            </div>
           </Campo>
 
           {/* Descrição */}

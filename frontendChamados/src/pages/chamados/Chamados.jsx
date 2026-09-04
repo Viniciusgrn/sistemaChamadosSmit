@@ -135,11 +135,22 @@ export default function Chamado() {
         // quem da TI digitou
         solicitante_id: form.solicitante_id || undefined,
         nome_solicitante: form.nome_solicitante || '',
+        // pode nascer agendado: status + data viajam juntos
+        ...(form.status === 'agendado' && form.agendadoPara
+          ? {
+              status_chamado: INT_POR_STATUS.agendado,
+              agendado_para: new Date(form.agendadoPara).toISOString(),
+            }
+          : {}),
       },
       {
         onSuccess: (novo) => {
           setNewTicket(false)
-          pushToast(`Chamado #${novo.id} criado · aguardando atribuição`)
+          pushToast(
+            form.status === 'agendado'
+              ? `Chamado #${novo.id} criado · agendado`
+              : `Chamado #${novo.id} criado · aguardando atribuição`
+          )
         },
         onError: (e) => pushToast(mensagemErro(e, 'Erro ao criar o chamado.')),
       }
