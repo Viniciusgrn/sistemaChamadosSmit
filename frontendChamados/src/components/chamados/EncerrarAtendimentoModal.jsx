@@ -117,7 +117,7 @@ export default function EncerrarAtendimentoModal({ chamadoAtual, destino, onConf
 
           <div>
             <label className="block text-[11px] font-medium mb-1.5" style={{ color: C.text2 }}>
-              Relatório interno <span className="font-normal" style={{ color: C.text3 }}>(só a TI vê · opcional)</span>
+              Relatório interno <span className="font-normal" style={{ color: C.text3 }}>(opcional)</span>
             </label>
             <textarea
               value={observacoes}
@@ -131,7 +131,7 @@ export default function EncerrarAtendimentoModal({ chamadoAtual, destino, onConf
 
           <div>
             <label className="block text-[11px] font-medium mb-1.5" style={{ color: C.text2 }}>
-              Guia de instrução pro solicitante <span className="font-normal" style={{ color: C.text3 }}>(ele lê no portal · opcional)</span>
+              Guia de instrução pro solicitante <span className="font-normal" style={{ color: C.text3 }}>(opcional)</span>
             </label>
             <textarea
               value={instrucoes}
