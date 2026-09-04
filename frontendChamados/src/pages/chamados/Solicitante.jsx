@@ -651,19 +651,18 @@ function DetalheChamadoModal({ chamado: c, meu, onClose }) {
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  const confirmarCancelamento = () => {
-    setErroCancelar('')
-    // confirmação nativa: cancelar tira o chamado da fila da TI e o
-    // solicitante não consegue reabrir sozinho — não pode ser um clique só
-    const ok = window.confirm(
-      `Cancelar o chamado #${c.id} — "${c.titulo}"?
+  // cancelar não pode ser um clique só; a confirmação é uma caixa própria
+  // (window.confirm destoa do resto da interface)
+  const [confirmando, setConfirmando] = useState(false)
 
-` +
-      'Ele sai da fila de atendimento da TI e não poderá ser reaberto por você.'
-    )
-    if (!ok) return
+  const executarCancelamento = () => {
+    setErroCancelar('')
     cancelar.mutate(c.id, {
-      onError: () => setErroCancelar('Não foi possível cancelar o chamado.'),
+      onSuccess: () => setConfirmando(false),
+      onError: () => {
+        setConfirmando(false)
+        setErroCancelar('Não foi possível cancelar o chamado.')
+      },
     })
   }
 
@@ -757,6 +756,52 @@ function DetalheChamadoModal({ chamado: c, meu, onClose }) {
           </div>
         </div>
 
+        {confirmando && (
+          <div
+            className="fixed inset-0 z-[1400] flex items-center justify-center p-4"
+            style={{ backgroundColor: 'rgba(20,22,36,0.45)' }}
+            onClick={() => setConfirmando(false)}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-xs rounded-lg p-5 text-center"
+              style={{ backgroundColor: C.surface, border: `1px solid ${C.border2}`, boxShadow: '0 20px 48px -8px rgba(20,22,36,0.3)' }}
+            >
+              <div
+                className="w-10 h-10 mx-auto mb-3 rounded-full flex items-center justify-center"
+                style={{ backgroundColor: '#fee2e2' }}
+              >
+                <AlertCircle className="w-5 h-5" strokeWidth={1.75} style={{ color: '#dc2626' }} />
+              </div>
+              <div className="text-[14px] font-semibold tracking-tight" style={{ color: C.text1 }}>
+                Cancelar o chamado #{c.id}?
+              </div>
+              <div className="text-[12px] mt-1 mb-4 truncate" style={{ color: C.text2 }}>
+                {c.titulo}
+              </div>
+              <div className="flex items-center justify-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setConfirmando(false)}
+                  className="px-4 py-2 rounded-md text-[13px] font-medium"
+                  style={{ backgroundColor: C.surface2, color: C.text2, border: `1px solid ${C.border}` }}
+                >
+                  Voltar
+                </button>
+                <button
+                  type="button"
+                  onClick={executarCancelamento}
+                  disabled={cancelar.isPending}
+                  className="px-4 py-2 rounded-md text-[13px] font-medium"
+                  style={{ backgroundColor: '#dc2626', color: '#fff', opacity: cancelar.isPending ? 0.6 : 1 }}
+                >
+                  {cancelar.isPending ? 'Cancelando…' : 'Sim, cancelar'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* dono cancela por aqui também, enquanto ninguém assumiu */}
         {meu && c.status_chamado === 0 && (
           <div
@@ -768,7 +813,7 @@ function DetalheChamadoModal({ chamado: c, meu, onClose }) {
             </span>
             <button
               type="button"
-              onClick={confirmarCancelamento}
+              onClick={() => setConfirmando(true)}
               disabled={cancelar.isPending}
               className="px-3 py-1.5 rounded-md text-[12px] font-medium transition-colors"
               style={{
