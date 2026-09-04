@@ -340,6 +340,7 @@ class EquipeViewSet(AuditMixin, viewsets.ModelViewSet):
             aberto.encerrado_em = agora
             aberto.motivo_encerramento = motivo
             aberto.observacoes = request.data.get('observacoes', '')
+            aberto.instrucoes_solicitante = request.data.get('instrucoes_solicitante', '')
             aberto.save()
 
             if str(motivo) == '0' and aberto.chamado_id:

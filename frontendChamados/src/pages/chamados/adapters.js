@@ -116,6 +116,7 @@ export function adaptaChamado(c) {
       motivo: a.motivo,
       motivo_display: a.motivo_display,
       observacoes: a.observacoes || '',
+      instrucoes: a.instrucoes || '',
     })),
 
     // tempo

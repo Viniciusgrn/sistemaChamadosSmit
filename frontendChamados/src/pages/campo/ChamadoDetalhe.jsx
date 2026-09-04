@@ -64,7 +64,7 @@ export default function ChamadoDetalhe() {
 
   const prio = PRIORITY_META[chamado.priority] || {}
   const st = STATUS_META[chamado.status] || {}
-  const comentarios = (chamado.atendimentos || []).filter((a) => a.observacoes)
+  const comentarios = (chamado.atendimentos || []).filter((a) => a.observacoes || a.instrucoes)
   // a passagem mais recente encerrada como 'Resolvido' (lista vem em ordem desc)
   const resolvedor = (chamado.atendimentos || []).find((a) => a.motivo === 0)
 
@@ -157,9 +157,20 @@ export default function ChamadoDetalhe() {
           <ul className="list-none p-0 m-0 space-y-2">
             {comentarios.map((a) => (
               <li key={a.id}>
-                <div className="text-[13px] whitespace-pre-wrap" style={{ color: C.text1 }}>
-                  {a.observacoes}
-                </div>
+                {a.observacoes && (
+                  <div className="text-[13px] whitespace-pre-wrap" style={{ color: C.text1 }}>
+                    {a.observacoes}
+                  </div>
+                )}
+                {a.instrucoes && (
+                  <div
+                    className="text-[12px] mt-1 px-2 py-1.5 rounded whitespace-pre-wrap"
+                    style={{ backgroundColor: '#eef2ff', color: '#312e81' }}
+                  >
+                    <span className="font-semibold">Guia pro solicitante: </span>
+                    {a.instrucoes}
+                  </div>
+                )}
                 <div className="text-[11px] mt-0.5" style={{ color: C.text3 }}>
                   {a.tecnicos.join(', ') || 'equipe'}
                   {a.encerrado_em && ` · ${dataHora(a.encerrado_em)}`}

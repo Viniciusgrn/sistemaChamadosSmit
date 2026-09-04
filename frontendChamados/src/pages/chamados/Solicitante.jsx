@@ -372,6 +372,22 @@ function ChamadoCard({ chamado: c, meu }) {
           <div className="text-[12px] mt-1 line-clamp-2" style={{ color: C.text2 }}>
             {c.descricao}
           </div>
+
+          {/* Guia deixado pelo técnico PARA o solicitante (ex.: especificação
+              do que comprar). O relatório interno da TI não chega aqui — o
+              backend só envia `instrucoes` pra quem não opera o sistema. */}
+          {(c.atendimentos || []).filter((a) => a.instrucoes).map((a) => (
+            <div
+              key={a.id}
+              className="text-[12px] mt-2 px-3 py-2 rounded-md whitespace-pre-wrap"
+              style={{ backgroundColor: '#eef2ff', color: '#312e81', border: '1px solid #c7d2fe' }}
+            >
+              <div className="text-[10px] uppercase tracking-wider font-semibold mb-0.5" style={{ color: '#6366f1' }}>
+                Instruções da TI
+              </div>
+              {a.instrucoes}
+            </div>
+          ))}
           <div className="flex items-center gap-3 mt-2 text-[11px] flex-wrap" style={{ color: C.text3 }}>
             <span>{c.tipo_display}</span>
             <span>·</span>

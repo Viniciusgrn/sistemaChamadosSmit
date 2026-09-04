@@ -121,6 +121,15 @@ export default function HistoricoEquipesModal({ chamado, onClose }) {
                         {a.observacoes}
                       </div>
                     )}
+                    {a.instrucoes && (
+                      <div
+                        className="text-[12px] mt-1.5 px-2 py-1.5 rounded whitespace-pre-wrap"
+                        style={{ backgroundColor: '#eef2ff', color: '#312e81' }}
+                      >
+                        <span className="font-semibold">Guia pro solicitante: </span>
+                        {a.instrucoes}
+                      </div>
+                    )}
                   </li>
                 )
               })}

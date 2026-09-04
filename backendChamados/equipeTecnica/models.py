@@ -128,6 +128,14 @@ class Atendimento(BaseModel):
     encerrado_em = models.DateTimeField(null=True, blank=True)
     observacoes = models.TextField(blank=True)
     motivo_encerramento = models.IntegerField(choices=MOTIVO_ENCERRAMENTO_CHOICES, null=True, blank=True)
+    # Dois textos com público diferente, preenchidos ao encerrar:
+    #   observacoes            -> relatório INTERNO, só a TI lê
+    #   instrucoes_solicitante -> guia pro SOLICITANTE ("compre um switch de 24
+    #                             portas gigabit..."), aparece no portal dele
+    instrucoes_solicitante = models.TextField(
+        blank=True, default='',
+        help_text='Orientações deixadas pelo técnico para o solicitante ler.',
+    )
 
     @staticmethod
     def _sobrepoe_participacao():

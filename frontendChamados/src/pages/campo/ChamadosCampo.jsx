@@ -93,11 +93,11 @@ export default function ChamadosCampo() {
     )
   }
 
-  const confirmarTroca = ({ status, observacoes }) => {
+  const confirmarTroca = ({ status, observacoes, instrucoes }) => {
     const { atual, destino } = troca
     atender.mutate(
       // o modal devolve a chave visual ('resolvido'); a API espera o inteiro
-      { id: destino.id, statusAnterior: INT_POR_STATUS[status], observacoes },
+      { id: destino.id, statusAnterior: INT_POR_STATUS[status], observacoes, instrucoes },
       {
         onSuccess: () => { setTroca(null); navigate('/chamado-atual') },
         onError: (e) => setErro(mensagemErro(e, 'Não foi possível trocar de chamado.')),

@@ -162,14 +162,25 @@ export default function ChamadoAtual() {
 
       {/* O que as equipes anteriores anotaram ao encerrar. Pro técnico em
           campo isso é contexto direto: o que já foi tentado e como terminou. */}
-      {(chamado.atendimentos || []).some((a) => a.observacoes) && (
+      {(chamado.atendimentos || []).some((a) => a.observacoes || a.instrucoes) && (
         <Bloco titulo="Comentários de atendimentos anteriores">
           <ul className="list-none p-0 m-0 space-y-2">
-            {chamado.atendimentos.filter((a) => a.observacoes).map((a) => (
+            {chamado.atendimentos.filter((a) => a.observacoes || a.instrucoes).map((a) => (
               <li key={a.id}>
-                <div className="text-[13px] whitespace-pre-wrap" style={{ color: C.text1 }}>
-                  {a.observacoes}
-                </div>
+                {a.observacoes && (
+                  <div className="text-[13px] whitespace-pre-wrap" style={{ color: C.text1 }}>
+                    {a.observacoes}
+                  </div>
+                )}
+                {a.instrucoes && (
+                  <div
+                    className="text-[12px] mt-1 px-2 py-1.5 rounded whitespace-pre-wrap"
+                    style={{ backgroundColor: '#eef2ff', color: '#312e81' }}
+                  >
+                    <span className="font-semibold">Guia pro solicitante: </span>
+                    {a.instrucoes}
+                  </div>
+                )}
                 <div className="text-[11px] mt-0.5" style={{ color: C.text3 }}>
                   {a.tecnicos.join(', ') || 'equipe'}
                   {a.encerrado_em && ` · ${new Date(a.encerrado_em).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}`}
@@ -233,12 +244,12 @@ export default function ChamadoAtual() {
         <EncerrarAtendimentoModal
           chamadoAtual={chamado}
           onClose={() => setEncerrando(false)}
-          onConfirmar={({ status, observacoes }) => {
+          onConfirmar={({ status, observacoes, instrucoes }) => {
             setErro('')
             encerrar.mutate(
               // o modal devolve a chave visual ('resolvido'); a API espera o
               // inteiro do status. Sem converter, volta 400 "Status inválido".
-              { id: chamado.id, status: INT_POR_STATUS[status], observacoes },
+              { id: chamado.id, status: INT_POR_STATUS[status], observacoes, instrucoes },
               {
                 onSuccess: () => setEncerrando(false),
                 // sem isto o erro era silencioso: o modal só parava de carregar

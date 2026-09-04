@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from core.papeis import opera_sistema
 from unidade.models import Unidade
 from usuario.models import Usuario
 from .models import Chamado
@@ -141,6 +142,12 @@ class ChamadoSerializer(serializers.ModelSerializer):
         não comentou. A tela decide o que exibir; aqui vai tudo, porque o
         histórico sem os comentários já era um buraco.
         """
+        # O relatório interno (`observacoes`) é da TI; o solicitante e a chefia
+        # dele recebem o campo vazio. Já o guia (`instrucoes`) existe PARA eles
+        # — especificação de compra, orientação de uso — e vai para todo mundo.
+        request = self.context.get('request')
+        ve_interno = bool(request and opera_sistema(request.user))
+
         resultado = []
         for a in obj.atendimentos.all():
             equipe = a.equipe
@@ -153,7 +160,8 @@ class ChamadoSerializer(serializers.ModelSerializer):
                     a.get_motivo_encerramento_display()
                     if a.motivo_encerramento is not None else None
                 ),
-                'observacoes': a.observacoes or '',
+                'observacoes': (a.observacoes or '') if ve_interno else '',
+                'instrucoes': a.instrucoes_solicitante or '',
                 # quem passou pela equipe naquele atendimento
                 'tecnicos': [
                     (p.tecnico.usuario.nome_completo or p.tecnico.usuario.username)

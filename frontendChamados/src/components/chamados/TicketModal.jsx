@@ -219,7 +219,7 @@ export default function TicketModal({ ticket, teams, onClose, onUpdate, onAssign
           {/* Comentários deixados pelo técnico ao encerrar cada atendimento.
               Atendimento sem comentário não aparece: a lista é dos textos,
               não do histórico completo. */}
-          {(ticket.atendimentos || []).some((a) => a.observacoes) && (
+          {(ticket.atendimentos || []).some((a) => a.observacoes || a.instrucoes) && (
             <div className="mb-5">
               <div
                 className="text-[10px] uppercase tracking-wider font-medium flex items-center gap-1.5 mb-2"
@@ -229,15 +229,28 @@ export default function TicketModal({ ticket, teams, onClose, onUpdate, onAssign
                 Comentários do atendimento
               </div>
               <ul className="list-none p-0 m-0 space-y-2">
-                {ticket.atendimentos.filter((a) => a.observacoes).map((a) => (
+                {ticket.atendimentos.filter((a) => a.observacoes || a.instrucoes).map((a) => (
                   <li
                     key={a.id}
                     className="px-3 py-2 rounded-md"
                     style={{ backgroundColor: C.surface2, border: `1px solid ${C.border}` }}
                   >
-                    <div className="text-[13px] whitespace-pre-wrap" style={{ color: C.text1 }}>
-                      {a.observacoes}
-                    </div>
+                    {a.observacoes && (
+                      <div className="text-[13px] whitespace-pre-wrap" style={{ color: C.text1 }}>
+                        {a.observacoes}
+                      </div>
+                    )}
+                    {a.instrucoes && (
+                      <div
+                        className="text-[13px] whitespace-pre-wrap mt-1.5 px-2.5 py-2 rounded"
+                        style={{ backgroundColor: '#eef2ff', color: '#312e81', border: '1px solid #c7d2fe' }}
+                      >
+                        <div className="text-[10px] uppercase tracking-wider font-semibold mb-1" style={{ color: '#6366f1' }}>
+                          Guia pro solicitante
+                        </div>
+                        {a.instrucoes}
+                      </div>
+                    )}
                     <div className="text-[11px] mt-1 flex items-center gap-2 flex-wrap" style={{ color: C.text3 }}>
                       <span>{a.tecnicos.join(', ') || 'equipe'}</span>
                       {a.encerrado_em && (

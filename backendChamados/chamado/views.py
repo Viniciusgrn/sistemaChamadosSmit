@@ -217,7 +217,7 @@ class ChamadoViewSet(AuditMixin, viewsets.ModelViewSet):
         """Equipe que está atendendo este chamado agora (se houver)."""
         return chamado.equipes_atendendo_agora.filter(encerrada_em__isnull=True).first()
 
-    def _encerra_atendimento(self, equipe, novo_status, user, observacoes='', motivo=None):
+    def _encerra_atendimento(self, equipe, novo_status, user, observacoes='', motivo=None, instrucoes=''):
         """
         Fecha o atendimento aberto da equipe e deixa o chamado no status
         escolhido. Encerrar o próprio atendimento NÃO é o mesmo que resolver o
@@ -237,6 +237,7 @@ class ChamadoViewSet(AuditMixin, viewsets.ModelViewSet):
                 else (0 if novo_status == Chamado.FINALIZADO else 1)
             )
             aberto.observacoes = observacoes or ''
+            aberto.instrucoes_solicitante = instrucoes or ''
             aberto.save()
 
             alvo = aberto.chamado
@@ -317,7 +318,8 @@ class ChamadoViewSet(AuditMixin, viewsets.ModelViewSet):
                     'chamado_atual': {'id': atual.id, 'titulo': atual.titulo},
                 })
             self._encerra_atendimento(
-                equipe, status_anterior, user, request.data.get('observacoes', '')
+                equipe, status_anterior, user, request.data.get('observacoes', ''),
+                instrucoes=request.data.get('instrucoes_solicitante', ''),
             )
 
         equipe.chamado_atual = chamado
@@ -354,7 +356,10 @@ class ChamadoViewSet(AuditMixin, viewsets.ModelViewSet):
         if novo_status is None:
             raise ValidationError({'status': 'Informe em que status o chamado deve ficar.'})
 
-        self._encerra_atendimento(equipe, novo_status, user, request.data.get('observacoes', ''))
+        self._encerra_atendimento(
+            equipe, novo_status, user, request.data.get('observacoes', ''),
+            instrucoes=request.data.get('instrucoes_solicitante', ''),
+        )
         return Response(self.get_serializer(chamado).data)
 
     def perform_update(self, serializer):

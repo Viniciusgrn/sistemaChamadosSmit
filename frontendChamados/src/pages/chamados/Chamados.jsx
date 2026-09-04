@@ -158,10 +158,10 @@ export default function Chamado() {
     })
   }
 
-  const confirmarTroca = ({ status, observacoes }) => {
+  const confirmarTroca = ({ status, observacoes, instrucoes }) => {
     const { atual, destino } = trocaPendente
     atender.mutate(
-      { id: destino.id, statusAnterior: INT_POR_STATUS[status], observacoes },
+      { id: destino.id, statusAnterior: INT_POR_STATUS[status], observacoes, instrucoes },
       {
         onSuccess: () => {
           setTrocaPendente(null)
@@ -172,10 +172,10 @@ export default function Chamado() {
     )
   }
 
-  const confirmarEncerramento = ({ status, observacoes }) => {
+  const confirmarEncerramento = ({ status, observacoes, instrucoes }) => {
     const alvo = encerrandoAtendimento
     encerrarAtendimento.mutate(
-      { id: alvo.id, status: INT_POR_STATUS[status], observacoes },
+      { id: alvo.id, status: INT_POR_STATUS[status], observacoes, instrucoes },
       {
         onSuccess: () => {
           setEncerrandoAtendimento(null)

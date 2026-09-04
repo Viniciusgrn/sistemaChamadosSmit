@@ -26,6 +26,8 @@ const C = {
 export default function EncerrarAtendimentoModal({ chamadoAtual, destino, onConfirmar, onClose, salvando, erro }) {
   const [status, setStatus] = useState(chamadoAtual?.statusReal || 'em_andamento')
   const [observacoes, setObservacoes] = useState('')
+  // guia pro solicitante: especificação de compra, orientação de uso…
+  const [instrucoes, setInstrucoes] = useState('')
 
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') onClose() }
@@ -115,7 +117,7 @@ export default function EncerrarAtendimentoModal({ chamadoAtual, destino, onConf
 
           <div>
             <label className="block text-[11px] font-medium mb-1.5" style={{ color: C.text2 }}>
-              Observações <span className="font-normal" style={{ color: C.text3 }}>(opcional)</span>
+              Relatório interno <span className="font-normal" style={{ color: C.text3 }}>(só a TI vê · opcional)</span>
             </label>
             <textarea
               value={observacoes}
@@ -124,6 +126,20 @@ export default function EncerrarAtendimentoModal({ chamadoAtual, destino, onConf
               placeholder="O que foi feito, o que ficou pendente…"
               className="w-full px-3 py-2 text-[13px] rounded-md focus:outline-none resize-none"
               style={{ backgroundColor: C.surface2, border: `1px solid ${C.border}`, color: C.text1 }}
+            />
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-medium mb-1.5" style={{ color: C.text2 }}>
+              Guia de instrução pro solicitante <span className="font-normal" style={{ color: C.text3 }}>(ele lê no portal · opcional)</span>
+            </label>
+            <textarea
+              value={instrucoes}
+              onChange={(e) => setInstrucoes(e.target.value)}
+              rows={3}
+              placeholder="Ex.: comprar um switch gigabit de 24 portas, gerenciável, padrão 19&quot;…"
+              className="w-full px-3 py-2 text-[13px] rounded-md focus:outline-none resize-none"
+              style={{ backgroundColor: '#f5f8ff', border: '1px solid #c7d2fe', color: C.text1 }}
             />
           </div>
 
@@ -140,7 +156,7 @@ export default function EncerrarAtendimentoModal({ chamadoAtual, destino, onConf
           </button>
           <button
             type="button"
-            onClick={() => onConfirmar({ status, observacoes })}
+            onClick={() => onConfirmar({ status, observacoes, instrucoes })}
             disabled={salvando}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium"
             style={{ backgroundColor: C.accent, color: '#fff' }}

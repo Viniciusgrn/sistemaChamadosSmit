@@ -38,10 +38,11 @@ function useInvalidarAtendimento() {
 export function useAtenderChamado() {
   const invalidar = useInvalidarAtendimento()
   return useMutation({
-    mutationFn: ({ id, statusAnterior, observacoes }) =>
+    mutationFn: ({ id, statusAnterior, observacoes, instrucoes }) =>
       chamadosApi.atender(id, {
         ...(statusAnterior != null ? { status_anterior: statusAnterior } : {}),
         ...(observacoes ? { observacoes } : {}),
+        ...(instrucoes ? { instrucoes_solicitante: instrucoes } : {}),
       }),
     onSuccess: invalidar,
   })
@@ -51,8 +52,12 @@ export function useAtenderChamado() {
 export function useEncerrarAtendimento() {
   const invalidar = useInvalidarAtendimento()
   return useMutation({
-    mutationFn: ({ id, status, observacoes }) =>
-      chamadosApi.encerrarAtendimento(id, { status, observacoes: observacoes || '' }),
+    mutationFn: ({ id, status, observacoes, instrucoes }) =>
+      chamadosApi.encerrarAtendimento(id, {
+        status,
+        observacoes: observacoes || '',
+        instrucoes_solicitante: instrucoes || '',
+      }),
     onSuccess: invalidar,
   })
 }
