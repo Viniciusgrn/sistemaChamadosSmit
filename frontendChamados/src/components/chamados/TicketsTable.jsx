@@ -533,9 +533,14 @@ function TabelaChamados({ linhas, onOpen, onUpdate }) {
               }}
             >
               <td className="px-4 py-2.5 font-mono font-semibold" style={{ color: C.text1 }}>{t.code}</td>
-              <td className="px-4 py-2.5" style={{ color: C.text1 }}>{t.title}</td>
-              {/* interno/externo é o que decide se a equipe precisa se deslocar */}
-              <td className="px-4 py-2.5" style={{ color: C.text2 }}>
+              <td className="px-4 py-2.5" style={{ color: C.text1, maxWidth: 220 }} title={t.title}>
+                <div className="truncate">{t.title}</div>
+              </td>
+              {/* interno/externo é o que decide se a equipe precisa se deslocar.
+                  maxWidth trava a coluna: endereço comprido vira "…" (o
+                  completo fica no title, ao passar o mouse) em vez de espremer
+                  as colunas vizinhas */}
+              <td className="px-4 py-2.5" style={{ color: C.text2, maxWidth: 240 }} title={t.address}>
                 <div className="flex items-center gap-2 min-w-0">
                   <LocalChamado chamado={t} compacto />
                   <span className="truncate">{t.address}</span>
@@ -563,8 +568,11 @@ function TabelaChamados({ linhas, onOpen, onUpdate }) {
                     />
                   : <StatusChip s={t.status} terceirizadas={t.terceirizadas} />}
               </td>
-              <td className="px-4 py-2.5" style={{ color: C.text2 }}>{t.client}</td>
-              <td className="px-4 py-2.5 font-mono text-[11px]" style={{ color: C.text3 }}>
+              {/* mesma regra do endereço: trunca com "…" e o nome inteiro no title */}
+              <td className="px-4 py-2.5" style={{ color: C.text2, maxWidth: 200 }} title={t.client}>
+                <div className="truncate">{t.client}</div>
+              </td>
+              <td className="px-4 py-2.5 font-mono text-[11px] whitespace-nowrap" style={{ color: C.text3 }}>
                 {t.date} · {t.openedAt}
               </td>
             </tr>
