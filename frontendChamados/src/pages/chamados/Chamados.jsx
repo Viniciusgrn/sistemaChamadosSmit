@@ -201,7 +201,6 @@ export default function Chamado() {
               Chamados
             </h1>
             <div className="text-[13.5px] mt-1" style={{ color: C.text2 }}>
-              Operação em tempo real ·{" "}
               {new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })}
             </div>
           </div>
