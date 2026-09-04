@@ -99,6 +99,9 @@ export function adaptaChamado(c) {
     urgencia: c.urgencia,
     urgenciaManual: !!c.urgencia_manual,
     urgenciaEscalonada: !!c.urgencia_escalonada,
+    // agendamento: data marcada e se ela já venceu (chamado vira urgente)
+    agendadoPara: c.agendado_para || null,
+    agendamentoVencido: !!c.agendamento_vencido,
     diasEmAberto: c.dias_em_aberto ?? null,
     diasParaSubir: c.dias_para_subir ?? null,
     tipo_display: c.tipo_display,

@@ -84,6 +84,8 @@ export default function Chamado() {
     const body = {}
     if (patch.priority) body.urgencia = INT_POR_PRIORIDADE[patch.priority]
     if (patch.status) body.status_chamado = INT_POR_STATUS[patch.status]
+    // ao agendar, a data/hora viaja junto com o status
+    if (patch.agendadoPara) body.agendado_para = new Date(patch.agendadoPara).toISOString()
     if (Object.keys(body).length === 0) return
 
     atualizar.mutate({ id: ticket.id, ...body }, {
@@ -94,8 +96,13 @@ export default function Chamado() {
         if (patch.status) {
           pushToast(`#${ticket.code} · status alterado`)
         }
-        // mantém o modal aberto refletindo o novo valor
-        setOpenTicket(prev => (prev && prev.id === ticket.id ? { ...prev, ...patch } : prev))
+        // mantém o modal aberto refletindo o novo valor (statusReal é a chave
+        // que o modal usa pra destacar o status ativo)
+        setOpenTicket(prev => (
+          prev && prev.id === ticket.id
+            ? { ...prev, ...patch, ...(patch.status ? { statusReal: patch.status } : {}) }
+            : prev
+        ))
       },
       onError: (e) => pushToast(mensagemErro(e, 'Não foi possível salvar a alteração.')),
     })

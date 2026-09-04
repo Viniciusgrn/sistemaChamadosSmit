@@ -13,6 +13,8 @@ __pycache__/
 venv/
 .env
 backendChamados/staticfiles/
+# uploads (documentos da TI, plantas) — em produção vivem no volume, nunca no repo
+backendChamados/media/
 
 # --- node / vite ---
 node_modules/

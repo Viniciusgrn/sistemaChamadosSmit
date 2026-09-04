@@ -3,7 +3,7 @@ from core.papeis import opera_sistema
 from unidade.models import Unidade
 from usuario.models import Usuario
 from .models import Chamado
-from .prioridade import dias_em_aberto, dias_para_subir, urgencia_efetiva
+from .prioridade import agendamento_vencido, dias_em_aberto, dias_para_subir, urgencia_efetiva
 
 
 class ChamadoSerializer(serializers.ModelSerializer):
@@ -43,6 +43,9 @@ class ChamadoSerializer(serializers.ModelSerializer):
     # ninguém definiu na mão. `urgencia` continua sendo o valor cru do banco.
     urgencia_efetiva = serializers.SerializerMethodField()
     urgencia_escalonada = serializers.SerializerMethodField()
+    # agendamento: a data chegou e o chamado segue "Agendado"? `vencido` liga e
+    # a urgência efetiva vem Crítica — a tela só sinaliza
+    agendamento_vencido = serializers.SerializerMethodField()
     dias_em_aberto = serializers.SerializerMethodField()
     dias_para_subir = serializers.SerializerMethodField()
 
@@ -63,6 +66,7 @@ class ChamadoSerializer(serializers.ModelSerializer):
             'urgencia_efetiva', 'urgencia_escalonada',
             'dias_em_aberto', 'dias_para_subir',
             'status_chamado', 'status_display',
+            'agendado_para', 'agendamento_vencido',
             'unidade_id', 'unidade', 'unidade_nome',
             'divisao_id', 'divisao_nome', 'secretaria_sigla',
             'endereco', 'endereco_id', 'interno', 'latitude', 'longitude',
@@ -86,6 +90,27 @@ class ChamadoSerializer(serializers.ModelSerializer):
                 },
             },
         }
+
+    def get_agendamento_vencido(self, obj):
+        return agendamento_vencido(obj)
+
+    def validate(self, dados):
+        # "Agendado" sem data não agenda nada — é o que faz o chamado voltar
+        # sozinho quando a hora chega
+        status = dados.get(
+            'status_chamado',
+            getattr(self.instance, 'status_chamado', None),
+        )
+        if status == Chamado.AGENDADO:
+            marcado = dados.get(
+                'agendado_para',
+                getattr(self.instance, 'agendado_para', None),
+            )
+            if not marcado:
+                raise serializers.ValidationError({
+                    'agendado_para': 'Informe a data e a hora do agendamento.'
+                })
+        return dados
 
     def get_urgencia_efetiva(self, obj):
         return urgencia_efetiva(obj)[0]

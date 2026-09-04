@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { X, Users, Check, Plus, Trash2, Briefcase, PlayCircle, StopCircle, Lock, MessageSquare } from 'lucide-react'
+import { X, Users, Check, Plus, Trash2, Briefcase, PlayCircle, StopCircle, Lock, MessageSquare, CalendarClock } from 'lucide-react'
 import { Avatar, PriorityCell, StatusChip, LocalChamado } from "./shared"
 import HistoricoEquipesModal from "./HistoricoEquipesModal"
 import {
@@ -25,6 +25,19 @@ const C = {
   accentInk:'#2d2783',
 }
 
+// ISO -> valor de <input type="datetime-local"> (horário local, sem fuso)
+function paraInputLocal(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  const p = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
+}
+
+function formataAgendamento(iso) {
+  const d = new Date(iso)
+  return `${d.toLocaleDateString('pt-BR')} às ${d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
+}
+
 export default function TicketModal({ ticket, teams, onClose, onUpdate, onAssign, onAtender, onEncerrarAtendimento }) {
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') onClose() }
@@ -39,6 +52,11 @@ export default function TicketModal({ ticket, teams, onClose, onUpdate, onAssign
   const resolvedor = (ticket.atendimentos || []).find((a) => a.motivo === 0)
   const [novaEmpresa, setNovaEmpresa] = useState('')
   const [novoProtocolo, setNovoProtocolo] = useState('')
+
+  // Agendamento: clicar em "Agendado" não muda o status na hora — primeiro
+  // abre o campo de data/hora, e o status vai junto com a data no salvar.
+  const [agendando, setAgendando] = useState(false)
+  const [dataAgendamento, setDataAgendamento] = useState('')
 
   const { user } = useAuth()
   const atender = useAtenderChamado()
@@ -476,10 +494,14 @@ export default function TicketModal({ ticket, teams, onClose, onUpdate, onAssign
               {STATUS_EDITAVEIS.map((s) => {
                 const meta = STATUS_META[s]
                 const ativo = ticket.statusReal === s
+                const clicar = s === 'agendado'
+                  // agendar pede a data primeiro; o status vai junto no confirmar
+                  ? () => { setDataAgendamento(paraInputLocal(ticket.agendadoPara)); setAgendando(true) }
+                  : () => { setAgendando(false); onUpdate(ticket, { status: s }) }
                 return (
                   <button
                     key={s}
-                    onClick={() => onUpdate(ticket, { status: s })}
+                    onClick={clicar}
                     className="px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors"
                     style={
                       ativo
@@ -492,6 +514,48 @@ export default function TicketModal({ ticket, teams, onClose, onUpdate, onAssign
                 )
               })}
             </div>
+
+            {agendando ? (
+              <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+                <input
+                  type="datetime-local"
+                  value={dataAgendamento}
+                  onChange={(e) => setDataAgendamento(e.target.value)}
+                  autoFocus
+                  className="px-2 py-1 rounded-md text-[11px] focus:outline-none"
+                  style={{ backgroundColor: C.surface2, border: `1px solid ${C.border2}`, color: C.text1 }}
+                />
+                <button
+                  onClick={() => {
+                    if (!dataAgendamento) return
+                    onUpdate(ticket, { status: 'agendado', agendadoPara: dataAgendamento })
+                    setAgendando(false)
+                  }}
+                  disabled={!dataAgendamento}
+                  className="px-2.5 py-1 rounded-md text-[11px] font-medium"
+                  style={{ backgroundColor: dataAgendamento ? C.accent : '#c7c5d9', color: '#fff' }}
+                >
+                  Agendar
+                </button>
+                <button
+                  onClick={() => setAgendando(false)}
+                  className="px-2 py-1 rounded-md text-[11px]"
+                  style={{ color: C.text2 }}
+                >
+                  Cancelar
+                </button>
+              </div>
+            ) : ticket.statusReal === 'agendado' && ticket.agendadoPara && (
+              <div
+                className="mt-2 inline-flex items-center gap-1.5 text-[11px]"
+                style={{ color: ticket.agendamentoVencido ? '#b91c1c' : C.text2 }}
+              >
+                <CalendarClock className="w-3.5 h-3.5" strokeWidth={1.75} />
+                {ticket.agendamentoVencido
+                  ? `A hora marcada (${formataAgendamento(ticket.agendadoPara)}) chegou — tratado como urgente`
+                  : `Agendado para ${formataAgendamento(ticket.agendadoPara)}`}
+              </div>
+            )}
           </div>
         </div>
 

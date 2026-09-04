@@ -44,6 +44,13 @@ def urgencia_por_idade(dias):
     return BAIXA
 
 
+def agendamento_vencido(chamado, agora=None):
+    """A data marcada chegou e o chamado ainda está como Agendado."""
+    if chamado.status_chamado != chamado.AGENDADO or not chamado.agendado_para:
+        return False
+    return (agora or timezone.now()) >= chamado.agendado_para
+
+
 def urgencia_efetiva(chamado, agora=None):
     """
     A urgência que a tela deve mostrar.
@@ -51,7 +58,15 @@ def urgencia_efetiva(chamado, agora=None):
     Devolve (urgencia, escalonada) — `escalonada` diz se o valor subiu por
     idade, pra UI poder sinalizar que não foi alguém que mexeu.
     """
-    if chamado.urgencia_manual or chamado.status_chamado in chamado.STATUS_ENCERRADOS:
+    if chamado.status_chamado in chamado.STATUS_ENCERRADOS:
+        return chamado.urgencia, False
+
+    # dia marcado chegou e ninguém foi: é O chamado do momento. Passa por cima
+    # até da urgência manual — a data também foi uma decisão de gente.
+    if agendamento_vencido(chamado, agora):
+        return CRITICA, True
+
+    if chamado.urgencia_manual:
         return chamado.urgencia, False
 
     piso = urgencia_por_idade(dias_em_aberto(chamado, agora))

@@ -51,6 +51,9 @@ class Chamado(BaseModel):
         help_text='Urgência definida por uma pessoa — congela o escalonamento automático.',
     )
     status_chamado = models.IntegerField(choices=STATUS_CHAMADO_CHOICES, default=0)
+    # quando status = AGENDADO: a visita marcada. Chegou a hora e o chamado
+    # ainda está agendado? A urgência efetiva vira Crítica (prioridade.py).
+    agendado_para = models.DateTimeField(null=True, blank=True)
     tipo_chamado = models.IntegerField(choices=TIPO_CHAMADO_CHOICES, default=0)
     unidade = models.ForeignKey('unidade.Unidade', on_delete=models.PROTECT)
     solicitante = models.ForeignKey('usuario.Usuario', on_delete=models.PROTECT)
