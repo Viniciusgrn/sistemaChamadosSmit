@@ -183,7 +183,11 @@ export default function TecnicoModal({ tecnico, onClose }) {
 
           {erroMut && (
             <div className="text-[12px] px-3 py-2 rounded-md" style={{ backgroundColor: '#fee2e2', color: '#7f1d1d' }}>
-              {erroMut.status === 401 || erroMut.status === 403
+              {/* o backend explica o motivo em `detail` (ex.: técnico com
+                  histórico não se exclui) — mostrar isso vale mais que o genérico */}
+              {erroMut.data?.detail
+                ? erroMut.data.detail
+                : erroMut.status === 401 || erroMut.status === 403
                 ? 'Sem permissão. Faça login no /admin e recarregue.'
                 : erroMut.data?.usuario_id
                   ? 'Este servidor já está cadastrado como técnico.'

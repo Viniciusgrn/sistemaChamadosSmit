@@ -40,6 +40,19 @@ class TecnicoViewSet(AuditMixin, viewsets.ModelViewSet):
             qs = qs.filter(responsabilidades_set__responsabilidade=resp)
         return qs.distinct()
 
+    def perform_destroy(self, instance):
+        # ParticipacaoEquipe e Atendimento apontam pro técnico com PROTECT:
+        # quem já esteve em equipe é parte do histórico (quem atendeu o quê,
+        # horas em campo) e não pode sumir do banco — a exclusão estourava
+        # ProtectedError e virava 500 sem explicação.
+        if instance.participacoes.exists():
+            raise ValidationError({'detail': (
+                'Este técnico já participou de equipes e o histórico impede a '
+                'exclusão. Se ele saiu da TI, desmarque "disponível" — o '
+                'cadastro fica pelo registro dos atendimentos.'
+            )})
+        instance.delete()
+
 
 class EquipeViewSet(AuditMixin, viewsets.ModelViewSet):
     queryset = (
