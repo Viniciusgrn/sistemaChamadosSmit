@@ -57,9 +57,6 @@ export default function Documentos() {
         <h1 className="text-xl font-semibold tracking-tight m-0" style={{ color: C.text1 }}>
           Documentos
         </h1>
-        <div className="text-[12px] mt-0.5" style={{ color: C.text2 }}>
-          Arquivos da TI, pra baixar de onde você estiver
-        </div>
       </header>
 
       <div className="flex-1 overflow-y-auto p-6">
