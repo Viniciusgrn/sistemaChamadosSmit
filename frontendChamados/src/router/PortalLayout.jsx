@@ -15,14 +15,12 @@ export default function PortalLayout() {
         style={{ backgroundColor: '#0d1f2d' }}
       >
         <Link to="/" className="flex items-center gap-2.5 no-underline">
-          <div className="w-7 h-7 rounded flex items-center justify-center" style={{ backgroundColor: '#1a3d3a' }}>
-            {/* caminho a partir da raiz: public/ é servido em /, igual à Sidebar */}
-            <img
-              src="/brasaoBraganca.png"
-              alt="Brasão de Bragança Paulista"
-              className="w-5 h-5 object-contain"
-            />
-          </div>
+          {/* caminho a partir da raiz: public/ é servido em /, igual à Sidebar */}
+          <img
+            src="/brasaoBraganca.png"
+            alt="Brasão de Bragança Paulista"
+            className="w-7 h-7 object-contain"
+          />
           <span className="text-[13px] font-semibold text-white tracking-tight">
             Sistema de Chamados
           </span>
