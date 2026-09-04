@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Plus, Ticket, Loader2, AlertCircle, Clock, X, UserPlus, Check } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
@@ -58,6 +58,12 @@ export default function ChamadosSolicitante() {
   const { user } = useAuth()
   const { data: chamados = [], isLoading, isError } = useChamadosVisiveis()
   const [abrindo, setAbrindo] = useState(false)
+  // id do chamado aberto no modal de consulta (null = fechado)
+  const [detalheId, setDetalheId] = useState(null)
+  const chamadoDetalhe = useMemo(
+    () => chamados.find((c) => c.id === detalheId) || null,
+    [chamados, detalheId]
+  )
   const [aba, setAba] = useState(ABERTO) // ABERTO | FINALIZADO | 'solicitacoes'
   const [soMeus, setSoMeus] = useState(false)
 
@@ -223,13 +229,13 @@ export default function ChamadosSolicitante() {
                   {divisao} · {lista.length}
                 </div>
                 <ul className="list-none p-0 m-0 space-y-3">
-                  {lista.map((c) => <ChamadoCard key={c.id} chamado={c} meu={c.solicitante === user?.id} />)}
+                  {lista.map((c) => <ChamadoCard key={c.id} chamado={c} meu={c.solicitante === user?.id} onAbrir={() => setDetalheId(c.id)} />)}
                 </ul>
               </div>
             ))
           ) : (
             <ul className="list-none p-0 m-0 space-y-3">
-              {daAba.map((c) => <ChamadoCard key={c.id} chamado={c} meu={c.solicitante === user?.id} />)}
+              {daAba.map((c) => <ChamadoCard key={c.id} chamado={c} meu={c.solicitante === user?.id} onAbrir={() => setDetalheId(c.id)} />)}
             </ul>
           )}
         </div>
@@ -239,6 +245,14 @@ export default function ChamadosSolicitante() {
         semSetor
           ? <SemSetorModal onClose={() => setAbrindo(false)} />
           : <AbrirChamadoModal user={user} onClose={() => setAbrindo(false)} />
+      )}
+
+      {chamadoDetalhe && (
+        <DetalheChamadoModal
+          chamado={chamadoDetalhe}
+          meu={chamadoDetalhe.solicitante === user?.id}
+          onClose={() => setDetalheId(null)}
+        />
       )}
     </div>
   )
@@ -344,12 +358,16 @@ function SolicitacoesChefe({ pendentes }) {
   )
 }
 
-function ChamadoCard({ chamado: c, meu }) {
+function ChamadoCard({ chamado: c, meu, onAbrir }) {
   const st = STATUS_META[c.status_chamado] || STATUS_META[0]
   return (
     <li
-      className="rounded-lg px-5 py-4"
+      onClick={onAbrir}
+      className="rounded-lg px-5 py-4 cursor-pointer transition-shadow"
       style={{ backgroundColor: C.surface, border: `1px solid ${C.border2}` }}
+      onMouseEnter={(e) => (e.currentTarget.style.boxShadow = '0 4px 16px -6px rgba(20,22,36,0.18)')}
+      onMouseLeave={(e) => (e.currentTarget.style.boxShadow = 'none')}
+      title="Ver detalhes do chamado"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
@@ -408,8 +426,13 @@ function ChamadoCard({ chamado: c, meu }) {
             {st.label}
           </span>
 
-          {/* só o dono cancela, e só enquanto ninguém assumiu (Aberto) */}
-          {meu && c.status_chamado === 0 && <BotaoCancelar id={c.id} />}
+          {/* só o dono cancela, e só enquanto ninguém assumiu (Aberto).
+              stopPropagation: cancelar não é "abrir os detalhes" */}
+          {meu && c.status_chamado === 0 && (
+            <div onClick={(e) => e.stopPropagation()}>
+              <BotaoCancelar id={c.id} />
+            </div>
+          )}
         </div>
       </div>
     </li>
@@ -610,6 +633,132 @@ function Campo({ label, required, children }) {
         {label}{required && <span className="ml-0.5" style={{ color: '#dc2626' }}>*</span>}
       </label>
       {children}
+    </div>
+  )
+}
+
+
+// Consulta do chamado pro SOLICITANTE: só o que é dele — descrição, situação,
+// datas, instruções deixadas pela TI e quem resolveu. Relatório interno da TI
+// nunca chega aqui (o backend envia o campo vazio pra quem não opera o sistema).
+function DetalheChamadoModal({ chamado: c, meu, onClose }) {
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  const st = STATUS_META[c.status_chamado] || STATUS_META[0]
+  const instrucoes = (c.atendimentos || []).filter((a) => a.instrucoes)
+  const resolvedor = (c.atendimentos || []).find((a) => a.motivo === 0)
+
+  const dataHora = (iso) => iso
+    ? new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : null
+
+  return (
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-[1100] flex items-center justify-center p-4 animate-fade-in"
+      style={{ backgroundColor: 'rgba(20,22,36,0.4)' }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-lg rounded-lg overflow-hidden flex flex-col max-h-[90vh]"
+        style={{ backgroundColor: C.surface, border: `1px solid ${C.border2}`, boxShadow: '0 20px 48px -8px rgba(20,22,36,0.25)' }}
+      >
+        <div className="px-5 py-4 flex items-start justify-between gap-3" style={{ borderBottom: `1px solid ${C.border}` }}>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-mono text-[11px] font-semibold" style={{ color: C.text3 }}>#{c.id}</span>
+              <span className="px-2 py-0.5 rounded text-[11px] font-medium" style={{ backgroundColor: st.bg, color: st.cor }}>
+                {st.label}
+              </span>
+            </div>
+            <h3 className="m-0 mt-1 text-[15px] font-semibold tracking-tight" style={{ color: C.text1 }}>
+              {c.titulo}
+            </h3>
+          </div>
+          <button type="button" onClick={onClose} className="w-8 h-8 rounded flex items-center justify-center flex-shrink-0" style={{ color: C.text3 }} aria-label="Fechar">
+            <X className="w-4 h-4" strokeWidth={1.75} />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          {c.descricao && (
+            <div>
+              <div className="text-[10px] uppercase tracking-wider font-medium mb-1" style={{ color: C.text3 }}>
+                Descrição
+              </div>
+              <p className="text-[13px] leading-relaxed m-0 whitespace-pre-wrap" style={{ color: C.text2 }}>
+                {c.descricao}
+              </p>
+            </div>
+          )}
+
+          {/* O que a TI deixou PARA o solicitante — a parte mais útil da consulta */}
+          {instrucoes.length > 0 && (
+            <div>
+              <div className="text-[10px] uppercase tracking-wider font-medium mb-1" style={{ color: '#6366f1' }}>
+                Instruções da TI
+              </div>
+              <div className="space-y-2">
+                {instrucoes.map((a) => (
+                  <div
+                    key={a.id}
+                    className="text-[13px] px-3 py-2 rounded-md whitespace-pre-wrap"
+                    style={{ backgroundColor: '#eef2ff', color: '#312e81', border: '1px solid #c7d2fe' }}
+                  >
+                    {a.instrucoes}
+                    {a.encerrado_em && (
+                      <div className="text-[11px] mt-1" style={{ color: '#6366f1' }}>
+                        {dataHora(a.encerrado_em)}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+            <Info label="Tipo">{c.tipo_display}</Info>
+            <Info label="Solicitante">{c.solicitante_nome || c.nome_solicitante || '—'}</Info>
+            <Info label="Setor">
+              {c.divisao_nome ? `${c.secretaria_sigla} · ${c.divisao_nome}` : (c.unidade_nome || '—')}
+            </Info>
+            <Info label="Unidade">{c.unidade_nome || '—'}</Info>
+            <Info label="Aberto em">{dataHora(c.created_at) || '—'}</Info>
+            {c.finalizado_em && <Info label="Encerrado em">{dataHora(c.finalizado_em)}</Info>}
+            {resolvedor && resolvedor.tecnicos?.length > 0 && (
+              <Info label="Resolvido por" colSpan>
+                {resolvedor.tecnicos.join(', ')}
+              </Info>
+            )}
+          </div>
+        </div>
+
+        {/* dono cancela por aqui também, enquanto ninguém assumiu */}
+        {meu && c.status_chamado === 0 && (
+          <div
+            className="px-5 py-3 flex items-center justify-end"
+            style={{ backgroundColor: C.surface2, borderTop: `1px solid ${C.border}` }}
+          >
+            <BotaoCancelar id={c.id} />
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function Info({ label, colSpan, children }) {
+  return (
+    <div className={colSpan ? 'col-span-2' : ''}>
+      <div className="text-[10px] uppercase tracking-wider font-medium mb-0.5" style={{ color: C.text3 }}>
+        {label}
+      </div>
+      <div className="text-[13px]" style={{ color: C.text1 }}>{children}</div>
     </div>
   )
 }
