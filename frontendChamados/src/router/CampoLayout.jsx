@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import {
-  BookAlert, Wrench, Package, Phone, Car, Building2, Users, UsersRound,
+  BookAlert, Wrench, Package, Phone, Car, Building2, Users, UsersRound, Network,
   Briefcase, Menu, X, LogOut, User, Navigation,
 } from 'lucide-react'
 
@@ -42,6 +42,7 @@ const GAVETA = [
     label: 'Consulta',
     items: [
       { to: '/equipamentos', label: 'Equipamentos', icon: Package },
+      { to: '/rede',         label: 'Rede',         icon: Network },
       { to: '/ramais',       label: 'Ramais',       icon: Phone },
       { to: '/automoveis',   label: 'Automóveis',   icon: Car },
       { to: '/unidades',     label: 'Unidades',     icon: Building2 },

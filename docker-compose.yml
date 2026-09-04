@@ -43,6 +43,7 @@ services:
       # ligue quando o domínio já estiver com TLS; antes disso o cookie
       # "secure" impede o login em HTTP e a tela fica em loop
       DJANGO_HTTPS: ${DJANGO_HTTPS:-0}
+      REDE_CHAVE_CIFRA: ${REDE_CHAVE_CIFRA:-}
       DB_NAME: ${DB_NAME}
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}

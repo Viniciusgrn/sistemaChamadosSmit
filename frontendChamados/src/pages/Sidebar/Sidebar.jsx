@@ -17,6 +17,7 @@ import {
   BookAlert,
   Phone,
   UserPlus,
+  Network,
 } from 'lucide-react'
 
 import { useAuth } from '../../contexts/AuthContext'
@@ -42,6 +43,7 @@ const navGroups = [
     label: 'Cadastros',
     items: [
       { to: '/equipamentos', label: 'Equipamentos', icon: Package },
+      { to: '/rede',         label: 'Rede',         icon: Network },
       { to: '/ramais',       label: 'Ramais',       icon: Phone },
       { to: '/automoveis',   label: 'Automóveis',   icon: Car },
       { to: '/unidades',     label: 'Unidades',     icon: Building2 },

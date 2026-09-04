@@ -7,7 +7,7 @@ classes fecham isso do lado do servidor.
 """
 from rest_framework import permissions
 
-from .papeis import coordena, eh_aprendiz
+from .papeis import coordena, eh_aprendiz, opera_sistema
 
 METODOS_LEITURA = permissions.SAFE_METHODS
 
@@ -74,3 +74,20 @@ class CadastroDeTerceirizadaSoCoordenacao(EscritaSoCoordenacao):
 class CadastroDeRamalSoCoordenacao(EscritaSoCoordenacao):
     """Lista telefônica da prefeitura: o técnico consulta, não mantém."""
     message = 'Só o administrativo ou a chefia altera os ramais.'
+
+
+class SoQuemOperaOSistema(permissions.BasePermission):
+    """
+    Área fechada da operação: nem LEITURA para solicitante, chefe ou secretário.
+
+    Nasceu pro mapeamento de rede, que guarda IP e senha de todo equipamento —
+    informação que não tem por que circular fora da TI. Difere das outras
+    classes daqui, que liberam leitura geral e fecham só a escrita.
+    """
+    message = 'Área restrita à equipe de TI.'
+
+    def has_permission(self, request, view):
+        user = getattr(request, 'user', None)
+        if not user or not user.is_authenticated:
+            return False
+        return opera_sistema(user)
