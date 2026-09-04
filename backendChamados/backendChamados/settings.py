@@ -73,6 +73,7 @@ INSTALLED_APPS = [
     "terceirizada.apps.TerceirizadaConfig",
     "ramal.apps.RamalConfig",
     "rede.apps.RedeConfig",
+    "documento.apps.DocumentoConfig",
     "unidade.apps.UnidadeConfig",
     "usuario.apps.UsuarioConfig",
     "core.apps.CoreConfig",

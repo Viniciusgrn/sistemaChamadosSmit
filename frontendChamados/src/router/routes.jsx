@@ -10,6 +10,7 @@ import ChamadoAtual from '../pages/campo/ChamadoAtual'
 import ChamadosCampo from '../pages/campo/ChamadosCampo'
 import ChamadoDetalhe from '../pages/campo/ChamadoDetalhe'
 import MapeamentoRede from '../pages/rede/MapeamentoRede'
+import Documentos from '../pages/documentos/Documentos'
 import Placeholder from '../pages/Placeholder'
 import Login from '../pages/auth/Login'
 import Perfil from '../pages/perfil/Perfil'
@@ -76,6 +77,7 @@ export default function AppRoutes() {
 
           <Route path="equipamentos" element={<Equipamentos />} />
           <Route path="rede" element={<MapeamentoRede />} />
+          <Route path="documentos" element={<Documentos />} />
           <Route path="ramais" element={<Ramais />} />
           <Route path="automoveis" element={<Automoveis />} />
           <Route path="unidades" element={<Unidades />} />
@@ -107,6 +109,7 @@ export default function AppRoutes() {
 
         <Route path="equipamentos" element={<Equipamentos />} />
         <Route path="rede" element={<MapeamentoRede />} />
+        <Route path="documentos" element={<Documentos />} />
         <Route path="ramais" element={<Ramais />} />
         <Route path="automoveis" element={<Automoveis />} />
         <Route path="unidades" element={<Unidades />} />

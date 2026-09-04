@@ -28,7 +28,10 @@ export async function apiFetch(path, { method = 'GET', body, params } = {}) {
     if (qs) url += `?${qs}`
   }
 
-  const headers = { 'Content-Type': 'application/json' }
+  // FormData (upload de arquivo) vai como está, e SEM Content-Type manual:
+  // o navegador precisa gerar o boundary do multipart sozinho
+  const ehFormData = body instanceof FormData
+  const headers = ehFormData ? {} : { 'Content-Type': 'application/json' }
   const metodoUnsafe = !['GET', 'HEAD', 'OPTIONS'].includes(method)
   if (metodoUnsafe) {
     const csrf = getCsrfToken()
@@ -39,7 +42,7 @@ export async function apiFetch(path, { method = 'GET', body, params } = {}) {
     method,
     headers,
     credentials: 'include',
-    body: body ? JSON.stringify(body) : undefined,
+    body: ehFormData ? body : body ? JSON.stringify(body) : undefined,
   })
 
   let data = null
@@ -50,4 +53,22 @@ export async function apiFetch(path, { method = 'GET', body, params } = {}) {
 
   if (!resp.ok) throw new ApiError(resp.status, data)
   return data
+}
+
+// Baixa um arquivo autenticado (cookie de sessão) e dispara o "salvar como"
+// do navegador. Link direto não serve: em dev a API está em outra origem, e
+// em produção o endpoint exige a sessão de quem opera o sistema.
+export async function apiDownload(path, nomeArquivo) {
+  const resp = await fetch(`${BASE_URL}${path}`, { credentials: 'include' })
+  if (!resp.ok) throw new ApiError(resp.status, null)
+
+  const blob = await resp.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = nomeArquivo
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
 }

@@ -12,6 +12,7 @@ urlpatterns = [
     path('api/terceirizada/', include('terceirizada.urls')),
     path('api/ramal/', include('ramal.urls')),
     path('api/rede/', include('rede.urls')),
+    path('api/documentos/', include('documento.urls')),
     path('api/equipes/', include('equipeTecnica.urls')),
     path('api/chamados/', include('chamado.urls')),
     path('api/usuarios/', include('usuario.urls')),

@@ -18,6 +18,7 @@ import {
   Phone,
   UserPlus,
   Network,
+  FileText,
 } from 'lucide-react'
 
 import { useAuth } from '../../contexts/AuthContext'
@@ -44,6 +45,7 @@ const navGroups = [
     items: [
       { to: '/equipamentos', label: 'Equipamentos', icon: Package },
       { to: '/rede',         label: 'Rede',         icon: Network },
+      { to: '/documentos',   label: 'Documentos',   icon: FileText },
       { to: '/ramais',       label: 'Ramais',       icon: Phone },
       { to: '/automoveis',   label: 'Automóveis',   icon: Car },
       { to: '/unidades',     label: 'Unidades',     icon: Building2 },
