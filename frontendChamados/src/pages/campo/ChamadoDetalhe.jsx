@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import {
   ArrowLeft, MapPin, Building2, Users, Clock, Loader2, AlertCircle,
@@ -7,6 +7,7 @@ import {
 import { useChamadosDIT } from '../../hooks/useChamados'
 import { PRIORITY_META, STATUS_META } from '../chamados/data'
 import { LocalChamado } from '../../components/chamados/shared'
+import HistoricoEquipesModal from '../../components/chamados/HistoricoEquipesModal'
 
 // Consulta de um chamado JÁ FEITO, na versão de campo. Mesmo desenho da tela
 // "Atual", menos as ações: aqui o técnico só lê — o que era, onde foi, quem
@@ -32,6 +33,7 @@ function dataHora(iso) {
 
 export default function ChamadoDetalhe() {
   const { id } = useParams()
+  const [historicoAberto, setHistoricoAberto] = useState(false)
   const { data: chamados = [], isLoading } = useChamadosDIT()
 
   const chamado = useMemo(
@@ -63,6 +65,8 @@ export default function ChamadoDetalhe() {
   const prio = PRIORITY_META[chamado.priority] || {}
   const st = STATUS_META[chamado.status] || {}
   const comentarios = (chamado.atendimentos || []).filter((a) => a.observacoes)
+  // a passagem mais recente encerrada como 'Resolvido' (lista vem em ordem desc)
+  const resolvedor = (chamado.atendimentos || []).find((a) => a.motivo === 0)
 
   return (
     <div className="p-4 flex flex-col gap-3 pb-6">
@@ -125,6 +129,22 @@ export default function ChamadoDetalhe() {
         <Linha icon={Users} texto={chamado.solicitante_nome || '—'} />
       </Bloco>
 
+      <Bloco titulo="Resolvido por">
+        <Linha
+          icon={Users}
+          texto={resolvedor ? resolvedor.tecnicos.join(', ') : 'ainda não resolvido'}
+        />
+        {(chamado.atendimentos || []).length > 0 && (
+          <button
+            onClick={() => setHistoricoAberto(true)}
+            className="self-start min-h-[40px] px-3 rounded-lg text-[13px] font-medium"
+            style={{ backgroundColor: '#eef0ff', color: '#2d2783', border: '1px solid #d4d6ff' }}
+          >
+            Ver todas as equipes ({chamado.atendimentos.length})
+          </button>
+        )}
+      </Bloco>
+
       <Bloco titulo="Datas">
         <Linha icon={Clock} texto={`Aberto em ${dataHora(chamado.created_at) || '—'}`} />
         {chamado.finalizado_em && (
@@ -149,6 +169,9 @@ export default function ChamadoDetalhe() {
             ))}
           </ul>
         </Bloco>
+      )}
+      {historicoAberto && (
+        <HistoricoEquipesModal chamado={chamado} onClose={() => setHistoricoAberto(false)} />
       )}
     </div>
   )

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { X, Users, Check, Plus, Trash2, Briefcase, PlayCircle, StopCircle, Lock, MessageSquare } from 'lucide-react'
 import { Avatar, PriorityCell, StatusChip, LocalChamado } from "./shared"
+import HistoricoEquipesModal from "./HistoricoEquipesModal"
 import {
   PRIORITY_META, TERCEIRIZADAS_META, TERC_STATUS_META, TERC_STATUS,
   STATUS_META, STATUS_EDITAVEIS,
@@ -32,6 +33,10 @@ export default function TicketModal({ ticket, teams, onClose, onUpdate, onAssign
   }, [onClose])
 
   // Form pra adicionar nova terceirizada
+  const [historicoAberto, setHistoricoAberto] = useState(false)
+  // quem de fato resolveu: a passagem mais recente encerrada como 'Resolvido'
+  // (a lista vem da API em ordem decrescente)
+  const resolvedor = (ticket.atendimentos || []).find((a) => a.motivo === 0)
   const [novaEmpresa, setNovaEmpresa] = useState('')
   const [novoProtocolo, setNovoProtocolo] = useState('')
 
@@ -183,6 +188,23 @@ export default function TicketModal({ ticket, teams, onClose, onUpdate, onAssign
               ) : (
                 <span style={{ color: C.text3 }}>Não atribuído</span>
               )}
+            </InfoItem>
+
+            <InfoItem label="Resolvido por" colSpan>
+              <span className="inline-flex items-center gap-2 flex-wrap">
+                <span style={{ color: resolvedor ? C.text1 : C.text3 }}>
+                  {resolvedor ? resolvedor.tecnicos.join(', ') : 'ainda não resolvido'}
+                </span>
+                {(ticket.atendimentos || []).length > 0 && (
+                  <button
+                    onClick={() => setHistoricoAberto(true)}
+                    className="text-[11px] px-2 py-0.5 rounded-md font-medium"
+                    style={{ backgroundColor: '#eef0ff', color: '#2d2783', border: '1px solid #d4d6ff' }}
+                  >
+                    ver equipes ({ticket.atendimentos.length})
+                  </button>
+                )}
+              </span>
             </InfoItem>
 
             <InfoItem label="Endereço" colSpan>
@@ -533,6 +555,10 @@ export default function TicketModal({ ticket, teams, onClose, onUpdate, onAssign
           </button>
         </div>
       </div>
+
+      {historicoAberto && (
+        <HistoricoEquipesModal chamado={ticket} onClose={() => setHistoricoAberto(false)} />
+      )}
     </div>
   )
 }
