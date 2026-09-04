@@ -55,15 +55,19 @@ export async function apiFetch(path, { method = 'GET', body, params } = {}) {
   return data
 }
 
-// Baixa um arquivo autenticado (cookie de sessão) e dispara o "salvar como"
-// do navegador. Link direto não serve: em dev a API está em outra origem, e
-// em produção o endpoint exige a sessão de quem opera o sistema.
-export async function apiDownload(path, nomeArquivo) {
+// Busca um arquivo autenticado (cookie de sessão) e devolve uma URL de blob
+// local — serve pra exibir num iframe ou baixar. Link direto não funciona:
+// em dev a API está em outra origem, e em produção o endpoint exige a sessão.
+// Quem chamar deve revogar a URL (URL.revokeObjectURL) quando terminar.
+export async function apiBlobUrl(path) {
   const resp = await fetch(`${BASE_URL}${path}`, { credentials: 'include' })
   if (!resp.ok) throw new ApiError(resp.status, null)
+  return URL.createObjectURL(await resp.blob())
+}
 
-  const blob = await resp.blob()
-  const url = URL.createObjectURL(blob)
+// Dispara o "salvar como" do navegador pro arquivo autenticado.
+export async function apiDownload(path, nomeArquivo) {
+  const url = await apiBlobUrl(path)
   const a = document.createElement('a')
   a.href = url
   a.download = nomeArquivo

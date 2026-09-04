@@ -1,4 +1,4 @@
-import { apiFetch, apiDownload } from './client'
+import { apiFetch, apiDownload, apiBlobUrl } from './client'
 
 // Guardador de documentos da TI (área restrita, como o mapeamento de rede).
 // Upload é multipart: nome + PDF.
@@ -16,4 +16,7 @@ export const documentosApi = {
 
   baixar: (id, nome) =>
     apiDownload(`/documentos/arquivos/${id}/download/`, nome.toLowerCase().endsWith('.pdf') ? nome : `${nome}.pdf`),
+
+  // URL de blob pro visualizador (revogar depois de fechar o modal)
+  abrir: (id) => apiBlobUrl(`/documentos/arquivos/${id}/download/`),
 }

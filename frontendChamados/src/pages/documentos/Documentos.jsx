@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   FileText, Search, Plus, Trash2, Download, Loader2, X, Upload,
 } from 'lucide-react'
@@ -45,6 +45,7 @@ export default function Documentos() {
   const filtrados = q ? documentos.filter((d) => d.nome.toLowerCase().includes(q)) : documentos
 
   const [enviando, setEnviando] = useState(false)
+  const [visualizando, setVisualizando] = useState(null)
   const [erro, setErro] = useState('')
 
   return (
@@ -115,6 +116,7 @@ export default function Documentos() {
                   doc={doc}
                   podeEditar={podeEditar}
                   onErro={setErro}
+                  onAbrir={() => setVisualizando(doc)}
                 />
               ))}
             </ul>
@@ -123,11 +125,12 @@ export default function Documentos() {
       </div>
 
       {enviando && <EnviarModal onClose={() => setEnviando(false)} />}
+      {visualizando && <VisualizarModal doc={visualizando} onClose={() => setVisualizando(null)} />}
     </div>
   )
 }
 
-function LinhaDocumento({ doc, podeEditar, onErro }) {
+function LinhaDocumento({ doc, podeEditar, onErro, onAbrir }) {
   const excluir = useExcluirDocumento()
   const [confirmando, setConfirmando] = useState(false)
   const [baixando, setBaixando] = useState(false)
@@ -149,8 +152,12 @@ function LinhaDocumento({ doc, podeEditar, onErro }) {
 
   return (
     <li
-      className="flex items-center gap-3 px-4 py-3 rounded-lg"
+      onClick={onAbrir}
+      className="flex items-center gap-3 px-4 py-3 rounded-lg cursor-pointer transition-colors"
       style={{ backgroundColor: C.surface, border: `1px solid ${C.border}` }}
+      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = C.hover)}
+      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = C.surface)}
+      title="Clique pra visualizar"
     >
       <div
         className="w-9 h-9 rounded-md flex items-center justify-center flex-shrink-0"
@@ -165,7 +172,9 @@ function LinhaDocumento({ doc, podeEditar, onErro }) {
       </div>
 
       {confirmando ? (
-        <span className="flex items-center gap-2 flex-shrink-0">
+        // stopPropagation em tudo aqui dentro: os botões da linha não podem
+        // abrir o visualizador junto
+        <span className="flex items-center gap-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
           <span className="text-[12px]" style={{ color: C.text2 }}>Excluir?</span>
           <button
             onClick={() => excluir.mutate(doc.id, {
@@ -186,7 +195,7 @@ function LinhaDocumento({ doc, podeEditar, onErro }) {
           </button>
         </span>
       ) : (
-        <span className="flex items-center gap-1 flex-shrink-0">
+        <span className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
           <button
             onClick={baixar}
             disabled={baixando}
@@ -213,6 +222,96 @@ function LinhaDocumento({ doc, podeEditar, onErro }) {
         </span>
       )}
     </li>
+  )
+}
+
+function VisualizarModal({ doc, onClose }) {
+  // o PDF chega autenticado pela API e vira uma URL de blob local; o iframe
+  // usa o visualizador nativo do navegador
+  const [url, setUrl] = useState(null)
+  const [erro, setErro] = useState('')
+  const [baixando, setBaixando] = useState(false)
+
+  useEffect(() => {
+    let ativo = true
+    let blobUrl = null
+    documentosApi.abrir(doc.id)
+      .then((u) => {
+        blobUrl = u
+        if (ativo) setUrl(u)
+      })
+      .catch((e) => {
+        if (ativo) setErro(mensagemErro(e, 'Não foi possível abrir o documento.'))
+      })
+    return () => {
+      ativo = false
+      if (blobUrl) URL.revokeObjectURL(blobUrl)
+    }
+  }, [doc.id])
+
+  const baixar = async () => {
+    setBaixando(true)
+    try {
+      await documentosApi.baixar(doc.id, doc.nome)
+    } catch (e) {
+      setErro(mensagemErro(e, 'Não foi possível baixar.'))
+    } finally {
+      setBaixando(false)
+    }
+  }
+
+  return (
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-[1100] flex items-center justify-center p-4 animate-fade-in"
+      style={{ backgroundColor: 'rgba(20,22,36,0.5)' }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-3xl h-[88vh] rounded-lg overflow-hidden flex flex-col"
+        style={{ backgroundColor: C.surface, border: `1px solid ${C.border2}`, boxShadow: '0 20px 48px -8px rgba(20,22,36,0.3)' }}
+      >
+        <div className="px-5 py-3 flex items-center gap-3" style={{ borderBottom: `1px solid ${C.border}` }}>
+          <FileText className="w-4 h-4 flex-shrink-0" strokeWidth={1.75} style={{ color: C.accent }} />
+          <h3 className="m-0 flex-1 text-[14px] font-semibold tracking-tight truncate" style={{ color: C.text1 }}>
+            {doc.nome}
+          </h3>
+          <button
+            onClick={baixar}
+            disabled={baixando}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium flex-shrink-0"
+            style={{ backgroundColor: '#eef0ff', color: C.accent }}
+          >
+            {baixando
+              ? <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={2} />
+              : <Download className="w-3.5 h-3.5" strokeWidth={2} />}
+            Baixar
+          </button>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded flex items-center justify-center flex-shrink-0"
+            style={{ color: C.text3 }}
+            aria-label="Fechar"
+          >
+            <X className="w-4 h-4" strokeWidth={1.75} />
+          </button>
+        </div>
+
+        <div className="flex-1 min-h-0" style={{ backgroundColor: '#525659' }}>
+          {erro ? (
+            <div className="h-full flex items-center justify-center px-6 text-center text-[13px]" style={{ color: '#fca5a5' }}>
+              {erro}
+            </div>
+          ) : !url ? (
+            <div className="h-full flex items-center justify-center gap-2 text-[13px]" style={{ color: '#d1d5db' }}>
+              <Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.75} /> Abrindo…
+            </div>
+          ) : (
+            <iframe src={url} title={doc.nome} className="w-full h-full border-0" />
+          )}
+        </div>
+      </div>
+    </div>
   )
 }
 
