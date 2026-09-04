@@ -542,7 +542,10 @@ function TabelaChamados({ linhas, onOpen, onUpdate }) {
                   as colunas vizinhas */}
               <td className="px-4 py-2.5" style={{ color: C.text2, maxWidth: 240 }} title={t.address}>
                 <div className="flex items-center gap-2 min-w-0">
-                  <LocalChamado chamado={t} compacto />
+                  {/* o selo Interno/Externo nunca encolhe — quem trunca é o endereço */}
+                  <span className="flex-shrink-0">
+                    <LocalChamado chamado={t} compacto />
+                  </span>
                   <span className="truncate">{t.address}</span>
                 </div>
               </td>
