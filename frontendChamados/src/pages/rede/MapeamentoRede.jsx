@@ -36,10 +36,9 @@ const C = {
 const TIPOS = [
   { value: 0, label: 'Roteador' },
   { value: 1, label: 'Switch' },
-  { value: 2, label: 'Access point' },
   { value: 3, label: 'Servidor' },
   { value: 4, label: 'Impressora' },
-  { value: 5, label: 'Câmera/DVR' },
+  { value: 5, label: 'Câmera' },
   { value: 6, label: 'Outro' },
 ]
 const TIPO_LABEL = Object.fromEntries(TIPOS.map((t) => [t.value, t.label]))
@@ -69,7 +68,7 @@ export default function MapeamentoRede() {
           Mapeamento de rede
         </h1>
         <div className="text-[12px] mt-0.5" style={{ color: C.text2 }}>
-          Dispositivos e redes Wi-Fi por unidade · acesso restrito à TI
+          Dispositivos e redes Wi-Fi por unidade
         </div>
       </header>
 

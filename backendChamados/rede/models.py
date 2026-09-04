@@ -15,13 +15,14 @@ class DispositivoRede(BaseModel):
     `senha_acesso` é gravada CIFRADA (rede/cifra.py). Nunca leia ou escreva o
     campo direto fora do serializer.
     """
+    # os números não se reaproveitam: 2 era 'Access point' e foi removido —
+    # renumerar mudaria o significado do que já está gravado no banco
     TIPO_CHOICES = [
         (0, 'Roteador'),
         (1, 'Switch'),
-        (2, 'Access point'),
         (3, 'Servidor'),
         (4, 'Impressora'),
-        (5, 'Câmera/DVR'),
+        (5, 'Câmera'),
         (6, 'Outro'),
     ]
 
