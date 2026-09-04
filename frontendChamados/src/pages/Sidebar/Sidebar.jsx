@@ -17,7 +17,6 @@ import {
   BookAlert,
   Phone,
   UserPlus,
-  Network,
   FileText,
 } from 'lucide-react'
 
@@ -44,7 +43,7 @@ const navGroups = [
     label: 'Cadastros',
     items: [
       { to: '/equipamentos', label: 'Equipamentos', icon: Package },
-      { to: '/rede',         label: 'Rede',         icon: Network },
+      // Rede fica fora do menu por enquanto (a rota /rede segue viva)
       { to: '/documentos',   label: 'Documentos',   icon: FileText },
       { to: '/ramais',       label: 'Ramais',       icon: Phone },
       { to: '/automoveis',   label: 'Automóveis',   icon: Car },
