@@ -106,6 +106,17 @@ export function adaptaChamado(c) {
     // pessoas
     solicitante: c.solicitante,
     solicitante_nome: c.solicitante_nome || c.nome_solicitante,
+    // histórico de atendimentos; `observacoes` é o comentário do técnico ao
+    // encerrar (vazio quando ele não escreveu nada)
+    atendimentos: (c.atendimentos || []).map((a) => ({
+      id: a.id,
+      tecnicos: a.tecnicos || [],
+      iniciado_em: a.iniciado_em,
+      encerrado_em: a.encerrado_em,
+      motivo: a.motivo,
+      motivo_display: a.motivo_display,
+      observacoes: a.observacoes || '',
+    })),
 
     // tempo
     openedAt: soHora(c.created_at),

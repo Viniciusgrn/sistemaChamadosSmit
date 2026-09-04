@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { X, Users, Check, Plus, Trash2, Briefcase, PlayCircle, StopCircle, Lock } from 'lucide-react'
+import { X, Users, Check, Plus, Trash2, Briefcase, PlayCircle, StopCircle, Lock, MessageSquare } from 'lucide-react'
 import { Avatar, PriorityCell, StatusChip, LocalChamado } from "./shared"
 import {
   PRIORITY_META, TERCEIRIZADAS_META, TERC_STATUS_META, TERC_STATUS,
@@ -163,6 +163,12 @@ export default function TicketModal({ ticket, teams, onClose, onUpdate, onAssign
           {/* Info do chamado. Status e prioridade não entram aqui: aparecem
               logo abaixo, já editáveis - repetir só ocuparia altura. */}
           <div className="grid grid-cols-2 gap-x-4 gap-y-3 mb-4">
+            <InfoItem label="Solicitante">
+              <span style={{ color: C.text1 }}>
+                {ticket.solicitante_nome || <span style={{ color: C.text3 }}>não informado</span>}
+              </span>
+            </InfoItem>
+
             <InfoItem label="Setor solicitante">
               <span style={{ color: C.text1 }}>{ticket.client}</span>
             </InfoItem>
@@ -187,6 +193,49 @@ export default function TicketModal({ ticket, teams, onClose, onUpdate, onAssign
               </span>
             </InfoItem>
           </div>
+
+          {/* Comentários deixados pelo técnico ao encerrar cada atendimento.
+              Atendimento sem comentário não aparece: a lista é dos textos,
+              não do histórico completo. */}
+          {(ticket.atendimentos || []).some((a) => a.observacoes) && (
+            <div className="mb-5">
+              <div
+                className="text-[10px] uppercase tracking-wider font-medium flex items-center gap-1.5 mb-2"
+                style={{ color: C.text3 }}
+              >
+                <MessageSquare className="w-3 h-3" strokeWidth={1.75} />
+                Comentários do atendimento
+              </div>
+              <ul className="list-none p-0 m-0 space-y-2">
+                {ticket.atendimentos.filter((a) => a.observacoes).map((a) => (
+                  <li
+                    key={a.id}
+                    className="px-3 py-2 rounded-md"
+                    style={{ backgroundColor: C.surface2, border: `1px solid ${C.border}` }}
+                  >
+                    <div className="text-[13px] whitespace-pre-wrap" style={{ color: C.text1 }}>
+                      {a.observacoes}
+                    </div>
+                    <div className="text-[11px] mt-1 flex items-center gap-2 flex-wrap" style={{ color: C.text3 }}>
+                      <span>{a.tecnicos.join(', ') || 'equipe'}</span>
+                      {a.encerrado_em && (
+                        <>
+                          <span>·</span>
+                          <span>{new Date(a.encerrado_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+                        </>
+                      )}
+                      {a.motivo_display && (
+                        <>
+                          <span>·</span>
+                          <span>{a.motivo_display}</span>
+                        </>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {/* Terceirizadas vinculadas */}
           <div className="mb-5">

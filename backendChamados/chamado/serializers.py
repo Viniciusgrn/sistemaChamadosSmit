@@ -49,6 +49,9 @@ class ChamadoSerializer(serializers.ModelSerializer):
     equipe_atual = serializers.SerializerMethodField()
     # delegações a empresas terceirizadas
     terceirizadas = serializers.SerializerMethodField()
+    # histórico de atendimentos — inclui o comentário que o técnico deixa ao
+    # encerrar (Atendimento.observacoes), que antes ficava invisível pra DIT
+    atendimentos = serializers.SerializerMethodField()
 
     class Meta:
         model = Chamado
@@ -62,7 +65,7 @@ class ChamadoSerializer(serializers.ModelSerializer):
             'unidade_id', 'unidade', 'unidade_nome',
             'divisao_id', 'divisao_nome', 'secretaria_sigla',
             'endereco', 'endereco_id', 'interno', 'latitude', 'longitude',
-            'equipe_atual', 'terceirizadas',
+            'equipe_atual', 'terceirizadas', 'atendimentos',
             'solicitante', 'solicitante_id', 'solicitante_nome', 'nome_solicitante',
             'finalizado_em', 'created_at', 'updated_at',
         ]
@@ -129,6 +132,36 @@ class ChamadoSerializer(serializers.ModelSerializer):
             ),
             'placa': equipe.automovel_utilizado.placa if equipe.automovel_utilizado_id else None,
         }
+
+    def get_atendimentos(self, obj):
+        """
+        Cada passagem de equipe pelo chamado, da mais recente pra mais antiga.
+
+        `observacoes` é o que o técnico escreveu ao encerrar — vazio quando ele
+        não comentou. A tela decide o que exibir; aqui vai tudo, porque o
+        histórico sem os comentários já era um buraco.
+        """
+        resultado = []
+        for a in obj.atendimentos.all():
+            equipe = a.equipe
+            resultado.append({
+                'id': a.id,
+                'iniciado_em': a.iniciado_em,
+                'encerrado_em': a.encerrado_em,
+                'motivo': a.motivo_encerramento,
+                'motivo_display': (
+                    a.get_motivo_encerramento_display()
+                    if a.motivo_encerramento is not None else None
+                ),
+                'observacoes': a.observacoes or '',
+                # quem passou pela equipe naquele atendimento
+                'tecnicos': [
+                    (p.tecnico.usuario.nome_completo or p.tecnico.usuario.username)
+                    for p in equipe.participacoes.all()
+                ],
+            })
+        resultado.sort(key=lambda x: x['iniciado_em'] or '', reverse=True)
+        return resultado
 
     def get_terceirizadas(self, obj):
         return [

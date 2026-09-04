@@ -40,6 +40,8 @@ class ChamadoViewSet(AuditMixin, viewsets.ModelViewSet):
         'equipes_atendendo_agora__participacoes__tecnico__usuario',
         'equipes_atendendo_agora__automovel_utilizado',
         'delegacoes__empresa_responsavel',
+        # histórico com comentários do técnico (serializer.get_atendimentos)
+        'atendimentos__equipe__participacoes__tecnico__usuario',
     ).all()
     serializer_class = ChamadoSerializer
 
