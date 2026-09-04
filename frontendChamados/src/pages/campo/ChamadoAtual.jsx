@@ -160,6 +160,27 @@ export default function ChamadoAtual() {
         )}
       </Bloco>
 
+      {/* O que as equipes anteriores anotaram ao encerrar. Pro técnico em
+          campo isso é contexto direto: o que já foi tentado e como terminou. */}
+      {(chamado.atendimentos || []).some((a) => a.observacoes) && (
+        <Bloco titulo="Comentários de atendimentos anteriores">
+          <ul className="list-none p-0 m-0 space-y-2">
+            {chamado.atendimentos.filter((a) => a.observacoes).map((a) => (
+              <li key={a.id}>
+                <div className="text-[13px] whitespace-pre-wrap" style={{ color: C.text1 }}>
+                  {a.observacoes}
+                </div>
+                <div className="text-[11px] mt-0.5" style={{ color: C.text3 }}>
+                  {a.tecnicos.join(', ') || 'equipe'}
+                  {a.encerrado_em && ` · ${new Date(a.encerrado_em).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}`}
+                  {a.motivo_display && ` · ${a.motivo_display}`}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </Bloco>
+      )}
+
       <Bloco titulo={`Equipe · ${minhaEquipe.name}`}>
         <div className="flex flex-wrap gap-2">
           {(minhaEquipe.members || []).map((m) => (
