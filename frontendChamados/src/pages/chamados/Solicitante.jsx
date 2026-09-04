@@ -360,6 +360,8 @@ function SolicitacoesChefe({ pendentes }) {
 
 function ChamadoCard({ chamado: c, meu, onAbrir }) {
   const st = STATUS_META[c.status_chamado] || STATUS_META[0]
+  const recomendacoes = (c.atendimentos || []).filter((a) => a.instrucoes)
+  const [verRecomendacoes, setVerRecomendacoes] = useState(false)
   return (
     <li
       onClick={onAbrir}
@@ -391,21 +393,28 @@ function ChamadoCard({ chamado: c, meu, onAbrir }) {
             {c.descricao}
           </div>
 
-          {/* Guia deixado pelo técnico PARA o solicitante (ex.: especificação
-              do que comprar). O relatório interno da TI não chega aqui — o
-              backend só envia `instrucoes` pra quem não opera o sistema. */}
-          {(c.atendimentos || []).filter((a) => a.instrucoes).map((a) => (
-            <div
-              key={a.id}
-              className="text-[12px] mt-2 px-3 py-2 rounded-md whitespace-pre-wrap"
+          {/* Recomendações da TI ficam atrás de um botão: inline elas
+              esticariam o cartão sem limite quando há várias. stopPropagation:
+              abrir as recomendações não é abrir o detalhe do chamado. */}
+          {recomendacoes.length > 0 && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setVerRecomendacoes(true) }}
+              className="mt-2 px-2.5 py-1 rounded-md text-[11px] font-medium"
               style={{ backgroundColor: '#eef2ff', color: '#312e81', border: '1px solid #c7d2fe' }}
             >
-              <div className="text-[10px] uppercase tracking-wider font-semibold mb-0.5" style={{ color: '#6366f1' }}>
-                Instruções da TI
-              </div>
-              {a.instrucoes}
-            </div>
-          ))}
+              Ver recomendaç{recomendacoes.length === 1 ? 'ão' : 'ões'} da TI
+              {recomendacoes.length > 1 ? ` (${recomendacoes.length})` : ''}
+            </button>
+          )}
+
+          {verRecomendacoes && (
+            <RecomendacoesModal
+              chamado={c}
+              recomendacoes={recomendacoes}
+              onClose={() => setVerRecomendacoes(false)}
+            />
+          )}
           <div className="flex items-center gap-3 mt-2 text-[11px] flex-wrap" style={{ color: C.text3 }}>
             <span>{c.tipo_display}</span>
             <span>·</span>
@@ -637,6 +646,65 @@ function Campo({ label, required, children }) {
   )
 }
 
+
+// Só as recomendações da TI, nada mais: é o que o solicitante procura quando
+// clica em "ver recomendação" na lista.
+function RecomendacoesModal({ chamado: c, recomendacoes, onClose }) {
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  const dataHora = (iso) => iso
+    ? new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : null
+
+  return (
+    <div
+      onClick={(e) => { e.stopPropagation(); onClose() }}
+      className="fixed inset-0 z-[1200] flex items-center justify-center p-4 animate-fade-in"
+      style={{ backgroundColor: 'rgba(20,22,36,0.4)' }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-md rounded-lg overflow-hidden flex flex-col max-h-[80vh]"
+        style={{ backgroundColor: C.surface, border: `1px solid ${C.border2}`, boxShadow: '0 20px 48px -8px rgba(20,22,36,0.25)' }}
+      >
+        <div className="px-5 py-4 flex items-center justify-between gap-3 flex-shrink-0" style={{ borderBottom: `1px solid ${C.border}` }}>
+          <div className="min-w-0">
+            <h3 className="m-0 text-[15px] font-semibold tracking-tight" style={{ color: C.text1 }}>
+              Recomendações da TI
+            </h3>
+            <div className="text-[11px] mt-0.5 truncate" style={{ color: C.text3 }}>
+              #{c.id} · {c.titulo}
+            </div>
+          </div>
+          <button type="button" onClick={onClose} className="w-8 h-8 rounded flex items-center justify-center flex-shrink-0" style={{ color: C.text3 }} aria-label="Fechar">
+            <X className="w-4 h-4" strokeWidth={1.75} />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4 space-y-2">
+          {recomendacoes.map((a) => (
+            <div
+              key={a.id}
+              className="text-[13px] px-3 py-2 rounded-md whitespace-pre-wrap"
+              style={{ backgroundColor: '#eef2ff', color: '#312e81', border: '1px solid #c7d2fe' }}
+            >
+              {a.instrucoes}
+              {a.encerrado_em && (
+                <div className="text-[11px] mt-1" style={{ color: '#6366f1' }}>
+                  {dataHora(a.encerrado_em)}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
 
 // Consulta do chamado pro SOLICITANTE: só o que é dele — descrição, situação,
 // datas, instruções deixadas pela TI e quem resolveu. Relatório interno da TI
