@@ -1,5 +1,5 @@
 import { Link, NavLink, Outlet } from 'react-router-dom'
-import { LogOut, Ticket, UserCircle2 } from 'lucide-react'
+import { LogOut, UserCircle2 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import AlertaTrocaSenha from '../components/AlertaTrocaSenha'
 
@@ -16,7 +16,12 @@ export default function PortalLayout() {
       >
         <Link to="/" className="flex items-center gap-2.5 no-underline">
           <div className="w-7 h-7 rounded flex items-center justify-center" style={{ backgroundColor: '#1a3d3a' }}>
-            <Ticket className="w-4 h-4" strokeWidth={1.75} style={{ color: '#7fb89e' }} />
+            {/* caminho a partir da raiz: public/ é servido em /, igual à Sidebar */}
+            <img
+              src="/brasaoBraganca.png"
+              alt="Brasão de Bragança Paulista"
+              className="w-5 h-5 object-contain"
+            />
           </div>
           <span className="text-[13px] font-semibold text-white tracking-tight">
             Sistema de Chamados
