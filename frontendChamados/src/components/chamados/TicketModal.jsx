@@ -551,9 +551,8 @@ export default function TicketModal({ ticket, teams, onClose, onUpdate, onAssign
                 style={{ color: ticket.agendamentoVencido ? '#b91c1c' : C.text2 }}
               >
                 <CalendarClock className="w-3.5 h-3.5" strokeWidth={1.75} />
-                {ticket.agendamentoVencido
-                  ? `A hora marcada (${formataAgendamento(ticket.agendadoPara)}) chegou — tratado como urgente`
-                  : `Agendado para ${formataAgendamento(ticket.agendadoPara)}`}
+                {/* vencido só muda a cor — o vermelho já diz o que precisa */}
+                {`Agendado para ${formataAgendamento(ticket.agendadoPara)}`}
               </div>
             )}
           </div>
