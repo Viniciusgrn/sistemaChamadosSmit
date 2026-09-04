@@ -39,6 +39,8 @@ export default function ChamadosCampo() {
   const [busca, setBusca] = useState('')
   const [erro, setErro] = useState('')
   const [mapaAberto, setMapaAberto] = useState(false)
+  // 'fila' = precisa de atendimento | 'concluidos' = finalizados e cancelados
+  const [aba, setAba] = useState('fila')
   // troca de chamado pendente de confirmação { atual, destino }
   const [troca, setTroca] = useState(null)
 
@@ -54,6 +56,15 @@ export default function ChamadosCampo() {
       .filter((c) => STATUS_ABERTOS.includes(c.status))
       .filter((c) => !q || [c.code, c.title, c.client, c.address].join(' ').toLowerCase().includes(q))
       .sort((a, b) => ORDEM[b.priority] - ORDEM[a.priority])
+  }, [chamados, busca])
+
+  // já feitos: finalizados e cancelados, do mais recente pro mais antigo
+  const concluidos = useMemo(() => {
+    const q = busca.trim().toLowerCase()
+    return chamados
+      .filter((c) => ['resolvido', 'cancelado'].includes(c.statusReal))
+      .filter((c) => !q || [c.code, c.title, c.client, c.address].join(' ').toLowerCase().includes(q))
+      .sort((a, b) => new Date(b.finalizado_em || b.created_at) - new Date(a.finalizado_em || a.created_at))
   }, [chamados, busca])
 
   const kpis = useMemo(() => {
@@ -141,6 +152,30 @@ export default function ChamadosCampo() {
         </div>
       )}
 
+      {/* Abas: a fila de trabalho e o histórico do que já foi feito */}
+      <div
+        className="flex rounded-lg p-1 gap-1"
+        style={{ backgroundColor: C.surface, border: `1px solid ${C.border}` }}
+      >
+        {[
+          { valor: 'fila', rotulo: `Na fila (${abertos.length})` },
+          { valor: 'concluidos', rotulo: `Concluídos (${concluidos.length})` },
+        ].map((t) => (
+          <button
+            key={t.valor}
+            onClick={() => setAba(t.valor)}
+            className="flex-1 min-h-[40px] rounded-md text-[13px] font-medium transition-colors"
+            style={
+              aba === t.valor
+                ? { backgroundColor: '#eef0ff', color: '#2d2783' }
+                : { backgroundColor: 'transparent', color: C.text2 }
+            }
+          >
+            {t.rotulo}
+          </button>
+        ))}
+      </div>
+
       <div className="flex items-center gap-2">
         <div className="relative flex-1 min-w-0">
           <Search
@@ -156,32 +191,45 @@ export default function ChamadosCampo() {
             style={{ backgroundColor: C.surface, border: `1px solid ${C.border}`, color: C.text1 }}
           />
         </div>
-        {/* mapa só das unidades que têm chamado aberto */}
-        <button
-          onClick={() => setMapaAberto(true)}
-          className="w-11 h-11 rounded-lg flex items-center justify-center flex-shrink-0"
-          style={{ backgroundColor: C.surface, border: `1px solid ${C.border}`, color: C.text2 }}
-          aria-label="Ver mapa dos chamados"
-          title="Ver mapa dos chamados"
-        >
-          <Map className="w-5 h-5" strokeWidth={1.75} />
-        </button>
+        {/* mapa só das unidades que têm chamado aberto — não faz sentido na
+            aba de concluídos */}
+        {aba === 'fila' && (
+          <button
+            onClick={() => setMapaAberto(true)}
+            className="w-11 h-11 rounded-lg flex items-center justify-center flex-shrink-0"
+            style={{ backgroundColor: C.surface, border: `1px solid ${C.border}`, color: C.text2 }}
+            aria-label="Ver mapa dos chamados"
+            title="Ver mapa dos chamados"
+          >
+            <Map className="w-5 h-5" strokeWidth={1.75} />
+          </button>
+        )}
       </div>
 
-      {abertos.length === 0 ? (
-        <Estado icon={Search} texto="Nenhum chamado em aberto." />
+      {aba === 'fila' ? (
+        abertos.length === 0 ? (
+          <Estado icon={Search} texto="Nenhum chamado em aberto." />
+        ) : (
+          <ul className="list-none p-0 m-0 flex flex-col gap-2">
+            {abertos.map((c) => (
+              <LinhaChamado
+                key={c.id}
+                chamado={c}
+                euAtendo={meuChamadoCode === c.code}
+                atendidoPorOutro={!!c.team && meuChamadoCode !== c.code}
+                podeAtender={user?.pode_atender}
+                ocupado={atender.isPending}
+                onIr={() => irPara(c)}
+              />
+            ))}
+          </ul>
+        )
+      ) : concluidos.length === 0 ? (
+        <Estado icon={Search} texto="Nenhum chamado concluído ainda." />
       ) : (
         <ul className="list-none p-0 m-0 flex flex-col gap-2">
-          {abertos.map((c) => (
-            <LinhaChamado
-              key={c.id}
-              chamado={c}
-              euAtendo={meuChamadoCode === c.code}
-              atendidoPorOutro={!!c.team && meuChamadoCode !== c.code}
-              podeAtender={user?.pode_atender}
-              ocupado={atender.isPending}
-              onIr={() => irPara(c)}
-            />
+          {concluidos.map((c) => (
+            <LinhaConcluido key={c.id} chamado={c} onAbrir={() => navigate(`/chamados/${c.id}`)} />
           ))}
         </ul>
       )}
@@ -208,6 +256,46 @@ export default function ChamadosCampo() {
 }
 
 const ORDEM = { baixa: 0, media: 1, alta: 2, urgente: 3 }
+
+// Cartão de chamado JÁ FEITO: clicar abre a consulta (/chamados/<id>), no
+// mesmo desenho da tela "Atual" — só leitura, sem botão de assumir.
+function LinhaConcluido({ chamado, onAbrir }) {
+  const st = STATUS_META[chamado.status] || {}
+  const quando = chamado.finalizado_em
+    ? new Date(chamado.finalizado_em).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' })
+    : ''
+  return (
+    <li>
+      <button
+        onClick={onAbrir}
+        className="w-full text-left rounded-xl p-3 flex flex-col gap-1.5"
+        style={{ backgroundColor: C.surface, border: `1px solid ${C.border}` }}
+      >
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <div className="font-mono text-[11px] font-semibold" style={{ color: C.text3 }}>
+              #{chamado.code}
+            </div>
+            <div className="text-[14px] font-medium leading-snug" style={{ color: C.text1 }}>
+              {chamado.title}
+            </div>
+          </div>
+          <span
+            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium flex-shrink-0 whitespace-nowrap"
+            style={{ backgroundColor: st.bg, color: st.fg }}
+          >
+            <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: st.dot }} />
+            {st.curto || st.label}
+          </span>
+        </div>
+        <div className="text-[12px] flex items-center gap-2 flex-wrap" style={{ color: C.text3 }}>
+          <span className="min-w-0 truncate">{chamado.client}</span>
+          {quando && <span>· {quando}</span>}
+        </div>
+      </button>
+    </li>
+  )
+}
 
 // Cartão em vez de linha de tabela: no celular a tabela obriga scroll lateral
 function LinhaChamado({ chamado, euAtendo, atendidoPorOutro, podeAtender, ocupado, onIr }) {

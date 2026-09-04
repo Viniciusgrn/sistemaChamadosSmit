@@ -8,6 +8,7 @@ import PortalLayout from './PortalLayout'
 import CampoLayout from './CampoLayout'
 import ChamadoAtual from '../pages/campo/ChamadoAtual'
 import ChamadosCampo from '../pages/campo/ChamadosCampo'
+import ChamadoDetalhe from '../pages/campo/ChamadoDetalhe'
 import Placeholder from '../pages/Placeholder'
 import Login from '../pages/auth/Login'
 import Perfil from '../pages/perfil/Perfil'
@@ -68,6 +69,8 @@ export default function AppRoutes() {
 
           <Route path="chamado-atual" element={<ChamadoAtual />} />
           <Route path="chamados" element={<ChamadosCampo />} />
+          {/* consulta de chamado já feito, aberta pela aba Concluídos */}
+          <Route path="chamados/:id" element={<ChamadoDetalhe />} />
           <Route path="manutencao" element={<Manutencao />} />
 
           <Route path="equipamentos" element={<Equipamentos />} />
