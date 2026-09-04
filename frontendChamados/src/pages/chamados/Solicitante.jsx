@@ -642,11 +642,30 @@ function Campo({ label, required, children }) {
 // datas, instruções deixadas pela TI e quem resolveu. Relatório interno da TI
 // nunca chega aqui (o backend envia o campo vazio pra quem não opera o sistema).
 function DetalheChamadoModal({ chamado: c, meu, onClose }) {
+  const cancelar = useCancelarChamado()
+  const [erroCancelar, setErroCancelar] = useState('')
+
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
+
+  const confirmarCancelamento = () => {
+    setErroCancelar('')
+    // confirmação nativa: cancelar tira o chamado da fila da TI e o
+    // solicitante não consegue reabrir sozinho — não pode ser um clique só
+    const ok = window.confirm(
+      `Cancelar o chamado #${c.id} — "${c.titulo}"?
+
+` +
+      'Ele sai da fila de atendimento da TI e não poderá ser reaberto por você.'
+    )
+    if (!ok) return
+    cancelar.mutate(c.id, {
+      onError: () => setErroCancelar('Não foi possível cancelar o chamado.'),
+    })
+  }
 
   const st = STATUS_META[c.status_chamado] || STATUS_META[0]
   const instrucoes = (c.atendimentos || []).filter((a) => a.instrucoes)
@@ -741,10 +760,28 @@ function DetalheChamadoModal({ chamado: c, meu, onClose }) {
         {/* dono cancela por aqui também, enquanto ninguém assumiu */}
         {meu && c.status_chamado === 0 && (
           <div
-            className="px-5 py-3 flex items-center justify-end"
+            className="px-5 py-3 flex items-center justify-between gap-3"
             style={{ backgroundColor: C.surface2, borderTop: `1px solid ${C.border}` }}
           >
-            <BotaoCancelar id={c.id} />
+            <span className="text-[12px]" style={{ color: '#b91c1c' }}>
+              {erroCancelar}
+            </span>
+            <button
+              type="button"
+              onClick={confirmarCancelamento}
+              disabled={cancelar.isPending}
+              className="px-3 py-1.5 rounded-md text-[12px] font-medium transition-colors"
+              style={{
+                backgroundColor: '#dc2626',
+                color: '#fff',
+                opacity: cancelar.isPending ? 0.6 : 1,
+                cursor: cancelar.isPending ? 'not-allowed' : 'pointer',
+              }}
+              onMouseEnter={(e) => { if (!cancelar.isPending) e.currentTarget.style.backgroundColor = '#b91c1c' }}
+              onMouseLeave={(e) => { if (!cancelar.isPending) e.currentTarget.style.backgroundColor = '#dc2626' }}
+            >
+              {cancelar.isPending ? 'Cancelando…' : 'Cancelar chamado'}
+            </button>
           </div>
         )}
       </div>
